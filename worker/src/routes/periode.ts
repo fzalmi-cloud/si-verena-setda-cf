@@ -5,13 +5,15 @@ import type { Bindings } from '../index';
 // Sebelumnya tabel ini menganggur & tahun di-hardcode di frontend.
 export const periodeRoutes = new Hono<{ Bindings: Bindings }>();
 
-// GET /api/periode — list periode (filter status/tahun)
+// GET /api/periode — list periode (filter jenis/status/tahun)
+// jenis: 'murni' (default, Renja biasa) | 'perubahan' (Renja Perubahan)
 periodeRoutes.get('/', async (c) => {
   const status = c.req.query('status');
   const tahun = c.req.query('tahun');
+  const jenis = c.req.query('jenis') || 'murni';
 
-  let query = 'SELECT * FROM periode_renja WHERE 1=1';
-  const params: any[] = [];
+  let query = 'SELECT * FROM periode_renja WHERE jenis = ?';
+  const params: any[] = [jenis];
 
   if (status) { query += ' AND status = ?'; params.push(status); }
   if (tahun) { query += ' AND tahun = ?'; params.push(parseInt(tahun)); }
@@ -32,7 +34,7 @@ periodeRoutes.get('/:id', async (c) => {
   return c.json(periode);
 });
 
-// POST /api/periode — buka periode tahun baru
+// POST /api/periode — buka periode tahun baru (jenis: murni/perubahan)
 periodeRoutes.post('/', async (c) => {
   try {
     const body = await c.req.json();
@@ -40,28 +42,30 @@ periodeRoutes.post('/', async (c) => {
     if (!tahun || isNaN(tahun)) {
       return c.json({ error: 'Tahun wajib diisi' }, 400);
     }
+    const jenis = body.jenis || 'murni';
 
-    // Cek duplikat tahun
+    // Cek duplikat tahun (per jenis)
     const existing = await c.env.DB.prepare(
-      'SELECT id FROM periode_renja WHERE tahun = ?'
-    ).bind(tahun).first();
+      'SELECT id FROM periode_renja WHERE tahun = ? AND jenis = ?'
+    ).bind(tahun, jenis).first();
     if (existing) {
-      return c.json({ error: `Periode tahun ${tahun} sudah ada` }, 409);
+      return c.json({ error: `Periode ${jenis} tahun ${tahun} sudah ada` }, 409);
     }
 
     const id = crypto.randomUUID();
     await c.env.DB.prepare(
-      `INSERT INTO periode_renja (id, tahun, status, tanggal_mulai, tanggal_selesai)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO periode_renja (id, tahun, status, tanggal_mulai, tanggal_selesai, jenis)
+       VALUES (?, ?, ?, ?, ?, ?)`
     ).bind(
       id,
       tahun,
       body.status || 'aktif',
       body.tanggal_mulai || null,
-      body.tanggal_selesai || null
+      body.tanggal_selesai || null,
+      jenis
     ).run();
 
-    return c.json({ id, ...body, tahun }, 201);
+    return c.json({ id, ...body, tahun, jenis }, 201);
   } catch (error: any) {
     return c.json({ error: 'Gagal membuat periode', detail: error.message }, 500);
   }

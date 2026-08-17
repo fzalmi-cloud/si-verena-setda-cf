@@ -31,10 +31,11 @@ export default function PeriodeRenja() {
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [jenisMode, setJenisMode] = useState('murni'); // 'murni' | 'perubahan'
 
   const { data: resp, isLoading } = useQuery({
-    queryKey: ['periode-list'],
-    queryFn: () => api.list('periode', { limit: 100 }),
+    queryKey: ['periode-list', jenisMode],
+    queryFn: () => api.list('periode', { jenis: jenisMode, limit: 100 }),
   });
   const periodeList = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
 
@@ -54,6 +55,7 @@ export default function PeriodeRenja() {
         status: form.status,
         tanggal_mulai: form.tanggal_mulai || undefined,
         tanggal_selesai: form.tanggal_selesai || undefined,
+        jenis: jenisMode,
       };
       if (editing) {
         await api.update('periode', editing.id, payload);
@@ -93,12 +95,28 @@ export default function PeriodeRenja() {
         <div>
           <h1 className="text-2xl font-display font-bold">Periode / Tahun Renja</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Kelola tahun renja yang tersedia di seluruh aplikasi (dropdown tahun diambil dari sini).
+            Kelola periode Renja <strong>Murni</strong> dan <strong>Perubahan</strong> secara terpisah.
           </p>
         </div>
         {canManage && (
           <Button onClick={openAdd}><Plus className="w-4 h-4 mr-2" /> Tambah Periode</Button>
         )}
+      </div>
+
+      {/* Pilih jenis periode */}
+      <div className="flex items-center gap-2 bg-card border border-border rounded-xl p-2 w-fit">
+        <button
+          onClick={() => setJenisMode('murni')}
+          className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${jenisMode === 'murni' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted/40'}`}
+        >
+          Renja Murni
+        </button>
+        <button
+          onClick={() => setJenisMode('perubahan')}
+          className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${jenisMode === 'perubahan' ? 'bg-purple-600 text-white' : 'text-muted-foreground hover:bg-muted/40'}`}
+        >
+          Renja Perubahan
+        </button>
       </div>
 
       {/* Info banner */}

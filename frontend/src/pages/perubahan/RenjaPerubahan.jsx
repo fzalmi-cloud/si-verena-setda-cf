@@ -47,7 +47,7 @@ export default function RenjaPerubahan() {
   const biroSaya = user?.nama_biro || '';
 
   useEffect(() => {
-    api.list('periode', { limit: 100 }).then(resp => {
+    api.list('periode', { jenis: 'perubahan', limit: 100 }).then(resp => {
       const list = Array.isArray(resp?.data) ? resp.data : [];
       setPeriodeList(list);
       const utkTahun = list.find(p => String(p.tahun) === String(tahun));
@@ -79,11 +79,11 @@ export default function RenjaPerubahan() {
       if (target) {
         await api.update('periode', target.id, payload);
       } else {
-        await api.create('periode', { tahun: parseInt(tahun), ...payload });
+        await api.create('periode', { jenis: 'perubahan', tahun: parseInt(tahun), ...payload });
       }
       toast.success('Periode diperbarui');
       setShowPeriode(false);
-      const resp = await api.list('periode', { limit: 100 });
+      const resp = await api.list('periode', { jenis: 'perubahan', limit: 100 });
       const list = Array.isArray(resp?.data) ? resp.data : [];
       setPeriodeList(list);
       setPeriode(list.find(p => String(p.tahun) === String(tahun)) || list.find(p => p.status === 'aktif') || null);

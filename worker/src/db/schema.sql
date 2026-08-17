@@ -33,10 +33,11 @@ CREATE INDEX IF NOT EXISTS idx_biro_status ON biro(status);
 -- Periode Renja
 CREATE TABLE IF NOT EXISTS periode_renja (
   id TEXT PRIMARY KEY,
-  tahun INTEGER NOT NULL UNIQUE,
+  tahun INTEGER NOT NULL,
   status TEXT DEFAULT 'aktif',
   tanggal_mulai TEXT,
   tanggal_selesai TEXT,
+  jenis TEXT NOT NULL DEFAULT 'murni',
   created_at TEXT DEFAULT (datetime('now'))
 );
 

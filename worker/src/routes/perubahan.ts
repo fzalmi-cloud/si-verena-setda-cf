@@ -62,7 +62,7 @@ perubahanRoutes.get('/dashboard', async (c) => {
     "SELECT * FROM biro WHERE status = 'aktif' ORDER BY nama_biro ASC"
   ).all();
   const { results: periode } = await c.env.DB.prepare(
-    'SELECT * FROM periode_renja WHERE tahun = ?'
+    "SELECT * FROM periode_renja WHERE tahun = ? AND jenis = 'perubahan'"
   ).bind(year).all();
 
   const subByBiro: Record<string, any> = {};

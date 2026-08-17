@@ -6,7 +6,7 @@ import { api } from '@/api/client';
 export function useTahunOptions() {
   const { data, isLoading } = useQuery({
     queryKey: ['periode-list'],
-    queryFn: () => api.list('periode', { limit: 100 }),
+    queryFn: () => api.list('periode', { jenis: 'murni', limit: 100 }),
   });
 
   const periodeList = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
