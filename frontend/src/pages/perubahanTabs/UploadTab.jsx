@@ -48,6 +48,8 @@ export default function UploadTab({ tahun, refreshKey, role, biroSaya, isAdminLi
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
   const [riwayatOpen, setRiwayatOpen] = useState(false);
+  const [deleteVersion, setDeleteVersion] = useState(null);
+  const [delBusy, setDelBusy] = useState(false);
 
   useEffect(() => {
     api.list('biro').then(r => setBiroList(Array.isArray(r?.data) ? r.data : [])).catch(() => {});
