@@ -175,3 +175,36 @@ Model yang digunakan:
 ## License
 
 MIT
+
+## ⚠️ Wajib: Konfigurasi Keamanan Sebelum Deploy
+
+**1. JWT_SECRET (kritis — token bisa dipalsukan jika tidak diset)**
+```bash
+cd worker
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+wrangler secret put JWT_SECRET
+```
+JWT_SECRET **tidak boleh** ada di `wrangler.toml` (bocor ke repo). Jika belum diset,
+semua endpoint API membalas `503 JWT_SECRET belum dikonfigurasi` sebagai pengaman.
+Untuk development lokal: salin `worker/.dev.vars.example` → `worker/.dev.vars`.
+
+**2. Password login**
+- Verifikasi password memakai `password_hash` (bcrypt) — bukan password hardcoded.
+- Data seed lama (plaintext) tetap bisa login dan otomatis di-upgrade ke bcrypt.
+- `POST /api/auth/register` selalu membuat role `biro_pengusul` (anti privilege escalation).
+- Pembuatan user dengan role khusus hanya melalui `POST /api/user` (admin).
+
+**3. Bersihkan data demo/mock dari database yang sudah ter-seed**
+```bash
+cd worker
+npm run db:cleanup    # hapus dokumen/hasil/skor/revisi/file_ref dummy (data master dipertahankan)
+```
+
+**4. Endpoint user hanya untuk admin**
+CRUD user berada di `/api/user` (auth + role admin). Endpoint `/api/auth` publik
+hanya berisi: `login`, `register`, `me`, `verify-token`.
+
+## Riwayat Patch Keamanan
+
+- `6f32b8f` — fix upload referensi (file-ref 500), login bcrypt, JWT_SECRET, otorisasi `/api/user`, register tanpa role dari client.
+- `4e9eabf` — hapus seed data mock, fix bcrypt hash seed admin, fix DELETE R2 (key salah), handle 401 pada upload, onError toast file referensi.
