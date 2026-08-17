@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Upload, Loader2, CheckCircle2, X, AlertCircle, FileText, History, ExternalLink, Bot } from 'lucide-react';
+import { Upload, Loader2, CheckCircle2, X, AlertCircle, FileText, History, ExternalLink, Bot, Trash2 } from 'lucide-react';
 import { getFileUrl } from '@/lib/utils';
 import { toast } from 'sonner';
 import TahunSelect from '@/components/TahunSelect';

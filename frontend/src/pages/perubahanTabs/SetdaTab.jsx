@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Layers, Sparkles, Loader2, ShieldCheck, CheckCircle2, Save, Bot, FileText, Download, Search, Lock } from 'lucide-react';
+import { Layers, Sparkles, Loader2, ShieldCheck, CheckCircle2, Save, Bot, FileText, Download, Search, Lock, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import TahunSelect from '@/components/TahunSelect';
 
