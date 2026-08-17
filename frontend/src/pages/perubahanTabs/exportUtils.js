@@ -1,0 +1,102 @@
+// Export helper untuk Hasil Pemeriksaan Renja Perubahan — DOCX / PDF / XLSX
+import { saveAs } from 'file-saver';
+
+const SEV_LABEL = { kritis: 'KRITIS', mayor: 'MAYOR', minor: 'MINOR', informasi: 'REDAKSIONAL' };
+const SEV_ORDER = { kritis: 0, mayor: 1, minor: 2, informasi: 3 };
+
+function fmtDate(d) {
+  if (!d) return '-';
+  try { return new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }); }
+  catch { return d; }
+}
+
+function sortFindings(f) { return [...f].sort((a, b) => (SEV_ORDER[a.severity] ?? 9) - (SEV_ORDER[b.severity] ?? 9)); }
+
+export async function exportHasilDOCX({ identitas, findings, skor }) {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType } = await import('docx');
+  const srt = sortFindings(findings);
+  const children = [];
+  children.push(new Paragraph({ text: 'LAPORAN HASIL PEMERIKSAAN RENJA PERUBAHAN', heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER }));
+  children.push(new Paragraph({ text: identitas.nama_biro || '', heading: HeadingLevel.HEADING_2, alignment: AlignmentType.CENTER }));
+  children.push(new Paragraph({ text: `TAHUN ${identitas.tahun || ''}`, heading: HeadingLevel.HEADING_3, alignment: AlignmentType.CENTER }));
+  children.push(new Paragraph({ text: '' }));
+  children.push(new Paragraph({ text: `Tanggal: ${fmtDate(new Date())}` }));
+  children.push(new Paragraph({ text: `Biro: ${identitas.nama_biro || '-'}` }));
+  children.push(new Paragraph({ text: `Tahun: ${identitas.tahun || '-'}` }));
+  children.push(new Paragraph({ text: `Tahapan: ${identitas.stage || '-'}` }));
+  children.push(new Paragraph({ text: `Versi: V${identitas.version_number || 0}` }));
+  children.push(new Paragraph({ text: `Tanggal Upload: ${fmtDate(identitas.tanggal_upload)}` }));
+  children.push(new Paragraph({ text: `Skor: ${skor?.skor_total ?? '-'}/100 (${skor?.level_kesiapan || '-'})` }));
+  children.push(new Paragraph({ text: '' }));
+  children.push(new Paragraph({ text: 'STATISTIK TEMUAN', heading: HeadingLevel.HEADING_1 }));
+  const counts = { kritis: 0, mayor: 0, minor: 0, informasi: 0 };
+  srt.forEach(f => { if (counts[f.severity] !== undefined) counts[f.severity]++; });
+  children.push(new Paragraph({ text: `Kritis: ${counts.kritis} | Mayor: ${counts.mayor} | Minor: ${counts.minor} | Redaksional: ${counts.informasi} | Total: ${srt.length}` }));
+  children.push(new Paragraph({ text: '' }));
+  children.push(new Paragraph({ text: 'DAFTAR TEMUAN', heading: HeadingLevel.HEADING_1 }));
+  const headerRow = new TableRow({
+    children: ['No', 'Tingkat', 'BAB', 'Halaman', 'Temuan', 'Data Dokumen', 'Data Acuan', 'Rekomendasi', 'Status'].map(h =>
+      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: h, bold: true })] })] })),
+  });
+  const rows = srt.map((f, i) => new TableRow({
+    children: [String(i + 1), SEV_LABEL[f.severity] || f.severity, f.chapter || '-', f.page || '-', f.description || '-', f.document_value || '-', f.reference_value || '-', f.recommendation || '-', f.status || 'terbuka'].map(v =>
+      new TableCell({ children: [new Paragraph({ text: String(v) })] })),
+  }));
+  children.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [headerRow, ...rows] }));
+  children.push(new Paragraph({ text: '' }));
+  children.push(new Paragraph({ text: 'REKOMENDASI & KESIMPULAN', heading: HeadingLevel.HEADING_1 }));
+  srt.filter(f => f.severity === 'kritis' || f.severity === 'mayor').forEach(f => {
+    children.push(new Paragraph({ text: `• ${f.recommendation || '-'}` }));
+  });
+  const doc = new Document({ sections: [{ children }] });
+  const blob = await Packer.toBlob(doc);
+  saveAs(blob, `Laporan_Pemeriksaan_RP_${(identitas.nama_biro || 'Biro').replace(/\s+/g, '_')}_V${identitas.version_number || 0}.docx`);
+}
+
+export async function exportHasilPDF({ identitas, findings, skor }) {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF();
+  const srt = sortFindings(findings);
+  doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+  doc.text('LAPORAN HASIL PEMERIKSAAN RENJA PERUBAHAN', 14, 18);
+  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+  doc.text(`${identitas.nama_biro || '-'} — Tahun ${identitas.tahun || '-'} — V${identitas.version_number || 0}`, 14, 26);
+  doc.text(`Skor: ${skor?.skor_total ?? '-'}/100 (${skor?.level_kesiapan || '-'})`, 14, 32);
+  let y = 40;
+  doc.setFontSize(9);
+  for (const f of srt) {
+    const lines = doc.splitTextToSize(`${SEV_LABEL[f.severity] || f.severity} | ${f.chapter || '-'} | ${f.page || '-'} | ${f.description || '-'}`, 182);
+    for (const l of lines) {
+      if (y > 280) { doc.addPage(); y = 20; }
+      doc.text(l, 14, y); y += 5;
+    }
+  }
+  doc.save(`Laporan_Pemeriksaan_RP_${(identitas.nama_biro || 'Biro').replace(/\s+/g, '_')}_V${identitas.version_number || 0}.pdf`);
+}
+
+export async function exportHasilXLSX({ identitas, findings, skor }) {
+  const XLSX = await import('xlsx');
+  const srt = sortFindings(findings);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['LAPORAN HASIL PEMERIKSAAN RENJA PERUBAHAN'],
+    ['Biro', identitas.nama_biro || '-'],
+    ['Tahun', identitas.tahun || '-'],
+    ['Tahapan', identitas.stage || '-'],
+    ['Versi', identitas.version_number || 0],
+    ['Skor', skor?.skor_total ?? '-'],
+    ['Level', skor?.level_kesiapan || '-'],
+  ]), 'Ringkasan');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['No', 'Tingkat', 'BAB', 'Halaman', 'Temuan', 'Data Dokumen', 'Data Acuan', 'Sumber Acuan', 'Rekomendasi', 'Status'],
+    ...srt.map((f, i) => [i + 1, SEV_LABEL[f.severity] || f.severity, f.chapter || '', f.page || '', f.description || '', f.document_value || '', f.reference_value || '', f.reference_source || '', f.recommendation || '', f.status || '']),
+  ]), 'Seluruh Temuan');
+  ['kritis', 'mayor', 'minor', 'informasi'].forEach(sev => {
+    const rows = srt.filter(f => f.severity === sev);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['No', 'BAB', 'Halaman', 'Temuan', 'Rekomendasi', 'Status'],
+      ...rows.map((f, i) => [i + 1, f.chapter || '', f.page || '', f.description || '', f.recommendation || '', f.status || '']),
+    ]), SEV_LABEL[sev]);
+  });
+  XLSX.writeFile(wb, `Laporan_Pemeriksaan_RP_${(identitas.nama_biro || 'Biro').replace(/\s+/g, '_')}_V${identitas.version_number || 0}.xlsx`);
+}

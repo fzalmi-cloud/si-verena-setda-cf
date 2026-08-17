@@ -21,6 +21,7 @@ import MasterBiro from '@/pages/MasterBiro';
 import KelolaPengguna from '@/pages/KelolaPengguna';
 import PeriodeRenja from '@/pages/PeriodeRenja';
 import Profil from '@/pages/Profil';
+import RenjaPerubahan from '@/pages/perubahan/RenjaPerubahan';
 import UploadRenja from '@/pages/UploadRenja';
 import UploadRevisi from '@/pages/UploadRevisi';
 import CatatanVerifikasiBappeda from '@/pages/FileReferensi';
@@ -56,6 +57,7 @@ function App() {
                 <Route path="/master-biro" element={<MasterBiro />} />
                 <Route path="/periode" element={<PeriodeRenja />} />
                 <Route path="/profil" element={<Profil />} />
+                <Route path="/perubahan" element={<RenjaPerubahan />} />
                 <Route path="/pengguna" element={<KelolaPengguna />} />
                 <Route path="/upload-renja" element={<UploadRenja />} />
                 <Route path="/upload-revisi" element={<UploadRevisi />} />

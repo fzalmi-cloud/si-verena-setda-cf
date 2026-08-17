@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ClipboardCheck, FileSearch, History,
   Users, BookOpen, Shield, ChevronLeft, ChevronRight, LogOut, FileUp, BarChart2, GitCompare, Database, FolderOpen, Eye, X,
   Sparkles, ClipboardList, CheckSquare, PenTool, Clock, Download, ChevronDown, ChevronUp,
-  CalendarRange, UserCircle
+  CalendarRange, UserCircle, GitBranch
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -36,6 +36,7 @@ const navItems = [
   { label: 'Upload Renja', icon: FileUp, path: '/upload-renja', roles: ['admin', 'kabag', ...BIRO_ROLES] },
   { label: 'Upload Revisi', icon: GitCompare, path: '/upload-revisi', roles: ['admin', 'kabag', ...BIRO_ROLES] },
   { label: 'Pemeriksaan', icon: ClipboardCheck, path: '/pemeriksaan', roles: ['admin', 'kabag', ...VERIF_ROLES, 'pimpinan', ...BIRO_ROLES] },
+  { label: 'Renja Perubahan', icon: GitBranch, path: '/perubahan', roles: ['admin', 'kabag', ...VERIF_ROLES, 'pimpinan', ...BIRO_ROLES] },
   { label: 'Hasil Verifikasi', icon: FileSearch, path: '/hasil', roles: ['admin', 'kabag', ...VERIF_ROLES, 'pimpinan', ...BIRO_ROLES] },
   { label: 'Riwayat Revisi', icon: History, path: '/riwayat', roles: ['admin', 'kabag', ...VERIF_ROLES, 'pimpinan', ...BIRO_ROLES] },
   { label: 'Semua Dokumen', icon: FolderOpen, path: '/dokumen-diunggah', roles: ['admin', 'kabag', ...VERIF_ROLES] },
