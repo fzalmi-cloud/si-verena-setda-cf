@@ -203,16 +203,31 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
         XLSX.writeFile(wb, `Renja_Perubahan_Setda_${tahunState}.xlsx`);
       } else {
         const { jsPDF } = await import('jspdf');
+        const { default: autoTable } = await import('jspdf-autotable');
         const doc = new jsPDF();
-        doc.setFontSize(13); doc.setFont('helvetica', 'bold');
-        doc.text('RENJA PERUBAHAN SEKRETARIAT DAERAH', 14, 18);
-        doc.setFontSize(10); doc.text(`TAHUN ${tahunState}`, 14, 26);
-        let y = 34;
+        doc.setFillColor(88, 28, 135);
+        doc.rect(0, 0, 210, 26, 'F');
+        doc.setTextColor(255, 255, 255); doc.setFontSize(13); doc.setFont('helvetica', 'bold');
+        doc.text('RENJA PERUBAHAN SEKRETARIAT DAERAH', 105, 11, { align: 'center' });
         doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+        doc.text(`PROVINSI SUMATERA BARAT — TAHUN ${tahunState}  |  ${detail.status === 'final' ? 'FINAL' : 'DRAFT'}`.toUpperCase(), 105, 19, { align: 'center' });
+        let y = 34;
+        doc.setTextColor(30, 41, 59); doc.setFontSize(9);
         sections.forEach(s => {
-          const lines = doc.splitTextToSize(`${s.chapter}.${s.subchapter} ${s.judul}\n${s.content || ''}`, 182);
-          for (const l of lines) { if (y > 280) { doc.addPage(); y = 20; } doc.text(l, 14, y); y += 5; }
+          const judul = `${s.chapter}.${s.subchapter} ${s.judul}`;
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+          if (y > 275) { doc.addPage(); y = 20; }
+          doc.text(judul, 14, y); y += 6;
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+          const lines = doc.splitTextToSize(s.content || 'Data Belum Tersedia', 182);
+          for (const l of lines) { if (y > 275) { doc.addPage(); y = 20; } doc.text(l, 14, y); y += 5; }
+          y += 3;
         });
+        const pages = doc.getNumberOfPages();
+        for (let i = 1; i <= pages; i++) {
+          doc.setPage(i); doc.setFontSize(7); doc.setTextColor(120, 120, 120);
+          doc.text(`SI-VERENA SETDA — Renja Perubahan Setda ${tahunState}  |  Halaman ${i} dari ${pages}`, 105, 290, { align: 'center' });
+        }
         doc.save(`Renja_Perubahan_Setda_${tahunState}.pdf`);
       }
       toast.success(`Export ${type.toUpperCase()} berhasil`);

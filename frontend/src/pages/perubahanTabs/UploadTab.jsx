@@ -56,6 +56,9 @@ export default function UploadTab({ tahun, refreshKey, role, biroSaya, isAdminLi
     if (initialBiro && !role?.startsWith('biro_')) setSelectedBiro(initialBiro);
   }, [initialBiro]);
 
+  // Sinkronkan tahun dengan header halaman (hindari mismatch tahun antar-tab)
+  useEffect(() => { setTahunState(tahun); }, [tahun]);
+
   useEffect(() => {
     if (!selectedBiro) { setSubmission(null); setVersions([]); return; }
     api.list('perubahan/submissions', { year: parseInt(tahunState), nama_biro: selectedBiro })

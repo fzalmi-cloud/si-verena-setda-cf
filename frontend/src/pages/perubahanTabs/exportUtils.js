@@ -55,24 +55,90 @@ export async function exportHasilDOCX({ identitas, findings, skor }) {
 
 export async function exportHasilPDF({ identitas, findings, skor }) {
   const { jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
   const doc = new jsPDF();
   const srt = sortFindings(findings);
+  const counts = { kritis: 0, mayor: 0, minor: 0, informasi: 0 };
+  srt.forEach(f => { if (counts[f.severity] !== undefined) counts[f.severity]++; });
+
+  // Header
+  doc.setFillColor(37, 99, 235);
+  doc.rect(0, 0, 210, 28, 'F');
+  doc.setTextColor(255, 255, 255);
   doc.setFontSize(14); doc.setFont('helvetica', 'bold');
-  doc.text('LAPORAN HASIL PEMERIKSAAN RENJA PERUBAHAN', 14, 18);
-  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-  doc.text(`${identitas.nama_biro || '-'} — Tahun ${identitas.tahun || '-'} — V${identitas.version_number || 0}`, 14, 26);
-  doc.text(`Skor: ${skor?.skor_total ?? '-'}/100 (${skor?.level_kesiapan || '-'})`, 14, 32);
-  let y = 40;
-  doc.setFontSize(9);
-  for (const f of srt) {
-    const lines = doc.splitTextToSize(`${SEV_LABEL[f.severity] || f.severity} | ${f.chapter || '-'} | ${f.page || '-'} | ${f.description || '-'}`, 182);
-    for (const l of lines) {
-      if (y > 280) { doc.addPage(); y = 20; }
-      doc.text(l, 14, y); y += 5;
-    }
+  doc.text('LAPORAN HASIL PEMERIKSAAN RENJA PERUBAHAN', 105, 12, { align: 'center' });
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+  doc.text(`${identitas.nama_biro || '-'} — Tahun ${identitas.tahun || '-'} — V${identitas.version_number || 0}`, 105, 20, { align: 'center' });
+
+  // Identitas & skor
+  doc.setTextColor(30, 41, 59); doc.setFontSize(9);
+  autoTable(doc, {
+    startY: 36,
+    theme: 'grid',
+    head: [['Identitas Dokumen', 'Nilai']],
+    body: [
+      ['Biro', identitas.nama_biro || '-'],
+      ['Tahun', identitas.tahun || '-'],
+      ['Tahapan', identitas.stage || '-'],
+      ['Versi', `V${identitas.version_number || 0}`],
+      ['Tanggal Upload', fmtDate(identitas.tanggal_upload)],
+      ['Nama File', identitas.file || '-'],
+      ['Pengunggah', identitas.pengunggah || '-'],
+      ['Skor', `${skor?.skor_total ?? '-'}/100 (${skor?.level_kesiapan || '-'})`],
+    ],
+    columnStyles: { 0: { cellWidth: 45, fontStyle: 'bold' }, 1: { cellWidth: 145 } },
+    styles: { fontSize: 8.5, cellPadding: 1.5 },
+  });
+
+  // Statistik temuan
+  autoTable(doc, {
+    startY: doc.lastAutoTable.finalY + 6,
+    theme: 'grid',
+    head: [['Total', 'Kritis', 'Mayor', 'Minor', 'Redaksional']],
+    body: [[srt.length, counts.kritis, counts.mayor, counts.minor, counts.informasi]],
+    styles: { fontSize: 10, halign: 'center' },
+    headStyles: { fillColor: [37, 99, 235] },
+  });
+
+  // Tabel temuan
+  autoTable(doc, {
+    startY: doc.lastAutoTable.finalY + 6,
+    theme: 'striped',
+    head: [['No', 'Tingkat', 'BAB', 'Hal', 'Temuan', 'Rekomendasi', 'Status']],
+    body: srt.map((f, i) => [String(i + 1), SEV_LABEL[f.severity] || f.severity, f.chapter || '-', f.page || '-', f.description || '-', f.recommendation || '-', STATUS_PDF[f.status] || f.status]),
+    columnStyles: {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 18, halign: 'center' },
+      2: { cellWidth: 12 },
+      3: { cellWidth: 10 },
+      4: { cellWidth: 60 },
+      5: { cellWidth: 55 },
+      6: { cellWidth: 25 },
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.column.index === 1) {
+        const sev = String(data.cell.raw);
+        if (sev === 'KRITIS') data.cell.styles.fillColor = [254, 226, 226];
+        else if (sev === 'MAYOR') data.cell.styles.fillColor = [254, 243, 199];
+        else if (sev === 'MINOR') data.cell.styles.fillColor = [219, 234, 254];
+      }
+    },
+    styles: { fontSize: 7.5, cellPadding: 1.5, valign: 'top' },
+    headStyles: { fillColor: [37, 99, 235], fontSize: 8 },
+  });
+
+  // Footer nomor halaman
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7); doc.setTextColor(120, 120, 120);
+    doc.text(`SI-VERENA SETDA — Laporan Pemeriksaan Renja Perubahan  |  Halaman ${i} dari ${pages}`, 105, 290, { align: 'center' });
   }
+
   doc.save(`Laporan_Pemeriksaan_RP_${(identitas.nama_biro || 'Biro').replace(/\s+/g, '_')}_V${identitas.version_number || 0}.pdf`);
 }
+
+const STATUS_PDF = { terbuka: 'Belum Diperbaiki', diduga_diperbaiki: 'Diduga Diperbaiki', selesai: 'Selesai', ditutup: 'Ditutup', dibuka_kembali: 'Dibuka Kembali' };
 
 export async function exportHasilXLSX({ identitas, findings, skor }) {
   const XLSX = await import('xlsx');

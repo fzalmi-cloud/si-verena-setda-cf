@@ -55,6 +55,8 @@ export default function HasilPemeriksaanTab({ tahun, refreshKey, role, biroSaya,
   useEffect(() => {
     if (initialVersion) setSelectedVersion(initialVersion);
   }, [initialVersion]);
+  // Sinkronkan tahun dengan header halaman
+  useEffect(() => { setTahunState(tahun); }, [tahun]);
 
   useEffect(() => {
     if (!selectedBiro) { setVersions([]); setFindings([]); setSubmission(null); setSelectedVersion(''); return; }
@@ -258,6 +260,13 @@ export default function HasilPemeriksaanTab({ tahun, refreshKey, role, biroSaya,
           {submission?.has_critical_open ? (
             <p className="mt-2 text-xs text-red-600 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Masih ada temuan KRITIS terbuka — dokumen tidak dapat ditetapkan Final.</p>
           ) : null}
+          {submission?.status === 'dikembalikan' && (
+            <div className="mt-3 p-3 rounded-lg border border-orange-200 bg-orange-50 text-xs text-orange-800">
+              <p className="font-bold flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> Dokumen dikembalikan untuk perbaikan</p>
+              <p className="mt-1">Catatan Verifikator: {submission.approval_note || '—'}</p>
+              <p className="mt-1 text-orange-700">Silakan perbaiki dokumen sesuai catatan, lalu unggah <strong>versi baru (V{submission.current_version + 1})</strong> di tab Upload. Pengembalian bersifat internal aplikasi — Biro melihatnya di dashboard, notifikasi, dan halaman ini.</p>
+            </div>
+          )}
           {isVerif && submission && submission.status !== 'final' && (
             <div className="mt-3 flex items-center gap-2 flex-wrap pt-3 border-t border-border">
               <Button size="sm" variant="outline" className="text-orange-700 border-orange-300" onClick={() => setReturnOpen(true)}><RotateCcw className="w-3.5 h-3.5 mr-1" /> Kembalikan untuk Perbaikan</Button>
