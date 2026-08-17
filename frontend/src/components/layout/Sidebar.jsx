@@ -70,6 +70,9 @@ export default function Sidebar({ collapsed, setCollapsed, user, realUser }) {
   const [showRolePicker, setShowRolePicker] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
 
+  const userRole = user?.role || 'biro_pengusul';
+  const navRole = userRole === 'reviewer' ? 'kabag' : userRole;
+
   // Badge notifikasi global (modul Renja Perubahan) sesuai role
   useEffect(() => {
     let active = true;
@@ -86,8 +89,6 @@ export default function Sidebar({ collapsed, setCollapsed, user, realUser }) {
   const [showPenyusunan, setShowPenyusunan] = useState(() =>
     location.pathname.startsWith('/penyusunan')
   );
-  const userRole = user?.role || 'biro_pengusul';
-  const navRole = userRole === 'reviewer' ? 'kabag' : userRole;
   const isAdminReal = realUser?.role === 'admin' || realUser?.role === 'kabag' || realUser?.role === 'reviewer';
 
   const filteredNav = navItems.filter(item => item.roles.includes(navRole));
