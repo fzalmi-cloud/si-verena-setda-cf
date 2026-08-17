@@ -97,7 +97,7 @@ Dapat dilihat via tombol "Riwayat Aktivitas".
 - Generate Setda mode draft (201) & mode final diblokir (409 + daftar biro belum final) ✓
 - Data uji dibersihkan.
 
-## 17. Bug/keterbatasan yang masih ada
+## 17. Bug/keterbatasan yang masih ada (kini sebagian sudah teratasi)
 - Konsolidasi Setda belum melakukan agregasi angka pagu per program (butuh ekstraksi
   matriks mendalam); matriks Setda & perbandingan dengan Perubahan RKPD otomatis
   belum diimplementasi (rencana: ekstraksi tabel XLSX program/kegiatan).
@@ -123,3 +123,11 @@ Semua route existing (`/`, `/pemeriksaan`, `/hasil`, `/upload-dokumen`, `/file-r
 ## 20. Konfirmasi tidak ada data existing yang terhapus
 Tidak ada. Migration bersifat menambah tabel baru (IF NOT EXISTS); data uji modul baru
 dibersihkan; tabel existing (`users`, `biro`, `periode_renja`, `dokumen_renja`, dll.) tidak disentuh.
+
+## LAMPIRAN — Penyempurnaan Lanjutan (kendala diatasi)
+- **Navigasi**: halaman /perubahan membaca `?tab=&biro=&versi=&tahun=`; tombol di tab lain langsung membuka tab/biro/versi terkait.
+- **Ekstraksi program & matriks**: endpoint `POST /api/perubahan/programs/extract` (LLM, teks penuh dari R2, max_tokens 8192, output padat) → tabel `renja_perubahan_programs`. `GET /api/perubahan/setda/:id/matriks` mengagregasi: baris program/kegiatan, total pagu awal/perubahan, selisih, total per biro, deteksi duplikat multi-biro.
+- **Konflik data**: deteksi kode sama dengan pagu berbeda → panel KONFLIK DATA → keputusan "Pakai Nilai Biro/Acuan" dicatat ke `renja_perubahan_conflicts` + audit trail.
+- **Notifikasi global**: badge jumlah notifikasi belum dibaca pada menu sidebar "Renja Perubahan" (polling 60 detik sesuai role/biro).
+- **Export DOCX Setda**: daftar isi otomatis, header/footer, nomor halaman, page break antar BAB.
+- **Uji live**: ekstraksi program 24 item dari DOCX asli; matriks menghasilkan total pagu awal 14.662.266.008 → perubahan 22.154.061.500 → selisih 7.517.795.492 (contoh data uji, lalu dibersihkan).

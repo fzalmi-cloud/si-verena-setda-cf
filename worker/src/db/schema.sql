@@ -402,3 +402,23 @@ CREATE TABLE IF NOT EXISTS audit_log (
   created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_audit_obj ON audit_log(object_type, object_id);
+
+-- Renja Perubahan: data program (untuk matriks & konsolidasi)
+CREATE TABLE IF NOT EXISTS renja_perubahan_programs (
+  id TEXT PRIMARY KEY, version_id TEXT, submission_id TEXT, nama_biro TEXT, year INTEGER,
+  version_number INTEGER, program_code TEXT, program_name TEXT, activity_code TEXT, activity_name TEXT,
+  subactivity_code TEXT, subactivity_name TEXT, indicator TEXT, target_awal TEXT, target_perubahan TEXT,
+  satuan TEXT, pagu_awal REAL DEFAULT 0, pagu_perubahan REAL DEFAULT 0, sumber_dana TEXT, lokasi TEXT,
+  kelompok_sasaran TEXT, source_location TEXT, created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_rp_prog_ver ON renja_perubahan_programs(version_id);
+CREATE INDEX IF NOT EXISTS idx_rp_prog_biro ON renja_perubahan_programs(nama_biro, year);
+
+-- Renja Perubahan: konflik data antar sumber
+CREATE TABLE IF NOT EXISTS renja_perubahan_conflicts (
+  id TEXT PRIMARY KEY, setda_id TEXT, kode TEXT, nama TEXT, field TEXT,
+  nilai_biro REAL, nilai_acuan REAL, nama_biro TEXT, acuan_source TEXT,
+  keputusan TEXT DEFAULT 'pending', decided_by TEXT, decided_at TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_rp_conf_setda ON renja_perubahan_conflicts(setda_id);

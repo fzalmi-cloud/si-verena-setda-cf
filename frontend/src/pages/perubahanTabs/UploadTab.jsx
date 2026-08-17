@@ -29,11 +29,11 @@ async function computeChecksum(file) {
   } catch { return `${file.name}|${file.size}`; }
 }
 
-export default function UploadTab({ tahun, refreshKey, role, biroSaya, isAdminLike }) {
+export default function UploadTab({ tahun, refreshKey, role, biroSaya, isAdminLike, initialBiro = '' }) {
   const { user } = useAuth();
   const { upload, uploading } = useUpload();
   const [biroList, setBiroList] = useState([]);
-  const [selectedBiro, setSelectedBiro] = useState(role?.startsWith('biro_') ? biroSaya : '');
+  const [selectedBiro, setSelectedBiro] = useState(role?.startsWith('biro_') ? biroSaya : initialBiro);
   const [tahunState, setTahunState] = useState(tahun);
   const [stage, setStage] = useState('rancangan_perubahan');
   const [tanggalDokumen, setTanggalDokumen] = useState('');
@@ -51,6 +51,10 @@ export default function UploadTab({ tahun, refreshKey, role, biroSaya, isAdminLi
   useEffect(() => {
     api.list('biro').then(r => setBiroList(Array.isArray(r?.data) ? r.data : [])).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (initialBiro && !role?.startsWith('biro_')) setSelectedBiro(initialBiro);
+  }, [initialBiro]);
 
   useEffect(() => {
     if (!selectedBiro) { setSubmission(null); setVersions([]); return; }

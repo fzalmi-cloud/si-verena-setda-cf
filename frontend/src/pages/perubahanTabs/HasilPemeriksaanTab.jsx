@@ -22,11 +22,11 @@ const SEV_CLS = {
 const STATUS_LABEL = { terbuka: 'Belum Diperbaiki', diduga_diperbaiki: 'Diduga Sudah Diperbaiki', selesai: 'Sudah Diverifikasi', ditutup: 'Ditutup', dibuka_kembali: 'Dibuka Kembali' };
 const SEV_ORDER = { kritis: 0, mayor: 1, minor: 2, informasi: 3 };
 
-export default function HasilPemeriksaanTab({ tahun, refreshKey, role, biroSaya, isVerif, isAdminLike }) {
+export default function HasilPemeriksaanTab({ tahun, refreshKey, role, biroSaya, isVerif, isAdminLike, initialBiro = '', initialVersion = '' }) {
   const { user } = useAuth();
   const [biroList, setBiroList] = useState([]);
   const [tahunState, setTahunState] = useState(tahun);
-  const [selectedBiro, setSelectedBiro] = useState(role?.startsWith('biro_') ? biroSaya : '');
+  const [selectedBiro, setSelectedBiro] = useState(role?.startsWith('biro_') ? biroSaya : initialBiro);
   const [versions, setVersions] = useState([]);
   const [selectedVersion, setSelectedVersion] = useState('');
   const [findings, setFindings] = useState([]);
@@ -48,6 +48,13 @@ export default function HasilPemeriksaanTab({ tahun, refreshKey, role, biroSaya,
   useEffect(() => {
     api.list('biro').then(r => setBiroList(Array.isArray(r?.data) ? r.data : [])).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (initialBiro && !role?.startsWith('biro_')) setSelectedBiro(initialBiro);
+  }, [initialBiro]);
+  useEffect(() => {
+    if (initialVersion) setSelectedVersion(initialVersion);
+  }, [initialVersion]);
 
   useEffect(() => {
     if (!selectedBiro) { setVersions([]); setFindings([]); setSubmission(null); setSelectedVersion(''); return; }

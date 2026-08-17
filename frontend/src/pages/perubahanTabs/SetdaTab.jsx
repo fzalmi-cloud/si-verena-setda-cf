@@ -27,6 +27,50 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
   const [sourceOpen, setSourceOpen] = useState(false);
   const [sourceData, setSourceData] = useState([]);
   const [exporting, setExporting] = useState('');
+  const [matriks, setMatriks] = useState(null);
+  const [matriksLoading, setMatriksLoading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [filterMatriks, setFilterMatriks] = useState('semua');
+
+  const loadMatriks = async () => {
+    if (!selectedSetda) return;
+    setMatriksLoading(true);
+    try {
+      const mm = await api.request(`/api/perubahan/setda/${selectedSetda}/matriks`, { method: 'GET' });
+      setMatriks(mm);
+    } catch { setMatriks(null); } finally { setMatriksLoading(false); }
+  };
+  useEffect(() => { if (selectedSetda) loadMatriks(); }, [selectedSetda, refreshKey]);
+
+  const extractPrograms = async () => {
+    if (!detail) return;
+    setExtracting(true);
+    try {
+      // Ekstrak program dari versi FINAL setiap biro (versi terakhir)
+      const subs = submissions.filter(s => s.status === 'final');
+      if (subs.length === 0) { toast.info('Belum ada biro FINAL untuk diekstrak.'); return; }
+      let total = 0;
+      for (const s of subs) {
+        const vr = await api.list('perubahan/versions', { submission_id: s.id });
+        const vs = Array.isArray(vr?.data) ? vr.data : [];
+        const latest = vs[0];
+        if (!latest) continue;
+        const r = await api.request('/api/perubahan/programs/extract', { method: 'POST', body: JSON.stringify({ version_id: latest.id }) });
+        total += r.programs || 0;
+      }
+      toast.success(`Ekstraksi selesai: ${total} program/kegiatan dari ${subs.length} biro final`);
+      await loadMatriks();
+    } catch (err) { toast.error('Gagal ekstraksi: ' + err.message); } finally { setExtracting(false); }
+  };
+
+  const resolveConflict = async (kode, pilih) => {
+    try {
+      await api.request(`/api/perubahan/setda/${selectedSetda}/resolve-conflict`, { method: 'POST', body: JSON.stringify({ kode, pilih }) });
+      toast.success(`Keputusan dicatat: pakai ${pilih}`);
+      await loadMatriks();
+    } catch (err) { toast.error('Gagal: ' + err.message); }
+  };
+
 
   const loadSubs = () => {
     api.list('perubahan/submissions', { year: parseInt(tahunState) })
@@ -115,17 +159,34 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
     setExporting(type);
     try {
       if (type === 'docx') {
-        const { Document, Packer, Paragraph, HeadingLevel } = await import('docx');
+        const { Document, Packer, Paragraph, HeadingLevel, Header, Footer, PageNumber, AlignmentType, PageBreak } = await import('docx');
         const { saveAs } = await import('file-saver');
         const children = [];
-        children.push(new Paragraph({ text: `RENJA PERUBAHAN SEKRETARIAT DAERAH PROVINSI SUMATERA BARAT`, heading: HeadingLevel.TITLE }));
-        children.push(new Paragraph({ text: `TAHUN ${tahunState}`, heading: HeadingLevel.HEADING_2 }));
+        children.push(new Paragraph({ text: 'RENJA PERUBAHAN SEKRETARIAT DAERAH PROVINSI SUMATERA BARAT', heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER }));
+        children.push(new Paragraph({ text: `TAHUN ${tahunState}`, heading: HeadingLevel.HEADING_2, alignment: AlignmentType.CENTER }));
+        children.push(new Paragraph({ text: `Status: ${detail.status === 'final' ? 'FINAL' : 'DRAFT'}` }));
         children.push(new Paragraph({ text: '' }));
+        // Daftar isi (TOC manual)
+        children.push(new Paragraph({ text: 'DAFTAR ISI', heading: HeadingLevel.HEADING_1 }));
+        sections.forEach(s => children.push(new Paragraph({ text: `${s.chapter}.${s.subchapter} ${s.judul}` })));
+        children.push(new Paragraph({ children: [new PageBreak()] }));
+        let lastChapter = '';
         sections.forEach(s => {
-          children.push(new Paragraph({ text: `${s.chapter}.${s.subchapter} ${s.judul}`, heading: HeadingLevel.HEADING_1 }));
+          if (s.chapter !== lastChapter) {
+            children.push(new Paragraph({ children: [new PageBreak()] }));
+            lastChapter = s.chapter;
+          }
+          children.push(new Paragraph({ text: `BAB ${s.chapter}`, heading: HeadingLevel.HEADING_1 }));
+          children.push(new Paragraph({ text: `${s.chapter}.${s.subchapter} ${s.judul}`, heading: HeadingLevel.HEADING_2 }));
           (s.content || '').split('\n').filter(Boolean).forEach(p => children.push(new Paragraph({ text: p })));
         });
-        const doc = new Document({ sections: [{ children }] });
+        const doc = new Document({
+          sections: [{
+            headers: { default: new Header({ children: [new Paragraph({ text: 'RENJA PERUBAHAN SEKRETARIAT DAERAH', alignment: AlignmentType.RIGHT })] }) },
+            footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new PageNumber()] })] }) },
+            children,
+          }],
+        });
         const blob = await Packer.toBlob(doc);
         saveAs(blob, `Renja_Perubahan_Setda_${tahunState}.docx`);
       } else if (type === 'xlsx') {
@@ -260,6 +321,105 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
           <Layers className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="text-sm">Renja Perubahan Setda Belum Siap Disusun</p>
           <p className="text-xs mt-1">{finalCount} dari {submissions.length || 0} Biro telah Final. Klik "Generate Draft" untuk mulai.</p>
+        </div>
+      )}
+
+      {/* Matriks & Konflik Data */}
+      {detail && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="text-sm font-semibold flex items-center gap-2"><FileText className="w-4 h-4 text-primary" /> Matriks Renja Perubahan Setda</h3>
+            <div className="flex items-center gap-2">
+              <Select value={filterMatriks} onValueChange={setFilterMatriks}>
+                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="semua">Semua Biro</SelectItem>
+                  {(matriks?.biroNames || []).map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" onClick={extractPrograms} disabled={extracting}>
+                {extracting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}
+                {extracting ? 'Mengekstrak...' : 'Ekstrak Program (Biro Final)'}
+              </Button>
+            </div>
+          </div>
+
+          {matriksLoading ? <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div> :
+           !matriks ? <p className="text-xs text-muted-foreground text-center py-6">Belum ada data matriks. Klik "Ekstrak Program (Biro Final)" setelah biro Final.</p> : (
+            <>
+              {/* Total Setda */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {[['Total Pagu Awal', matriks.totalPaguAwal], ['Total Pagu Perubahan', matriks.totalPaguPerubahan], ['Selisih', matriks.totalSelisih], ['Jumlah Baris', matriks.rows.length]].map(([l, v]) => (
+                  <div key={l} className="p-3 rounded-lg border border-border text-center">
+                    <p className="text-lg font-bold text-primary">{typeof v === 'number' && l.includes('Pagu') ? 'Rp ' + new Intl.NumberFormat('id-ID').format(v || 0) : v}</p>
+                    <p className="text-[10px] text-muted-foreground">{l}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Total per Biro */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {Object.entries(matriks.perBiro || {}).map(([b, d]) => (
+                  <Badge key={b} variant="outline" className="text-[10px]">{b}: Rp {new Intl.NumberFormat('id-ID').format(d.pagu_perubahan || 0)} ({d.program} prog)</Badge>
+                ))}
+              </div>
+
+              {/* Konflik Data */}
+              {matriks.conflicts && matriks.conflicts.length > 0 && (
+                <div className="p-3 rounded-lg border border-red-200 bg-red-50/50">
+                  <p className="text-xs font-bold text-red-700 mb-2 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> KONFLIK DATA ({matriks.conflicts.length})</p>
+                  <div className="space-y-1.5">
+                    {matriks.conflicts.map((c, i) => (
+                      <div key={i} className="flex items-center justify-between flex-wrap gap-2 p-2 rounded-lg border border-red-200 bg-white text-xs">
+                        <div>
+                          <p className="font-medium">{c.nama} ({c.kode})</p>
+                          <p className="text-muted-foreground">Biro: Rp {new Intl.NumberFormat('id-ID').format(c.nilai_biro)} · {c.nama_biro} vs Rp {new Intl.NumberFormat('id-ID').format(c.nilai_acuan)} · {c.acuan_source || 'sumber lain'}</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => resolveConflict(c.kode, 'biro')}>Pakai Nilai Biro</Button>
+                          <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => resolveConflict(c.kode, 'acuan')}>Pakai Nilai Acuan</Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tabel matriks */}
+              <div className="bg-card border border-border rounded-xl overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead><tr className="bg-muted/30 text-left text-muted-foreground border-b border-border">
+                    <th className="px-2 py-2 font-medium">Kode</th>
+                    <th className="px-2 py-2 font-medium">Program/Kegiatan/Subkegiatan</th>
+                    <th className="px-2 py-2 font-medium">Indikator</th>
+                    <th className="px-2 py-2 font-medium">Target Awal</th>
+                    <th className="px-2 py-2 font-medium">Target Perubahan</th>
+                    <th className="px-2 py-2 font-medium text-right">Pagu Awal</th>
+                    <th className="px-2 py-2 font-medium text-right">Pagu Perubahan</th>
+                    <th className="px-2 py-2 font-medium text-right">+/-</th>
+                    <th className="px-2 py-2 font-medium">Biro</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-border">
+                    {matriks.rows
+                      .filter(r => filterMatriks === 'semua' || (r.biro || '').includes(filterMatriks))
+                      .map((r, i) => (
+                      <tr key={i} className="hover:bg-muted/20">
+                        <td className="px-2 py-1.5">{r.kode}</td>
+                        <td className="px-2 py-1.5 max-w-[220px]">{r.program}{r.kegiatan ? ' — ' + r.kegiatan : ''}{r.subkegiatan ? ' — ' + r.subkegiatan : ''}</td>
+                        <td className="px-2 py-1.5 max-w-[120px] text-muted-foreground">{r.indikator || '-'}</td>
+                        <td className="px-2 py-1.5">{r.target_awal || '-'}</td>
+                        <td className="px-2 py-1.5">{r.target_perubahan || '-'}</td>
+                        <td className="px-2 py-1.5 text-right">{new Intl.NumberFormat('id-ID').format(r.pagu_awal)}</td>
+                        <td className="px-2 py-1.5 text-right font-semibold">{new Intl.NumberFormat('id-ID').format(r.pagu_perubahan)}</td>
+                        <td className={`px-2 py-1.5 text-right font-bold ${r.selisih >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{r.selisih >= 0 ? '+' : ''}{new Intl.NumberFormat('id-ID').format(r.selisih)}</td>
+                        <td className="px-2 py-1.5">{r.biro}{r.duplikat ? <span className="text-[9px] text-amber-600 ml-1">(multi-biro)</span> : ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       )}
 

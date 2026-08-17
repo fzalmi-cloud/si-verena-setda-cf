@@ -23,8 +23,11 @@ const TAHAP_LABELS = {
 export default function RenjaPerubahan() {
   const { user } = useAuth();
   const role = user?.role;
-  const [tahun, setTahun] = useState('2027');
-  const [tab, setTab] = useState('dashboard');
+  const params = new URLSearchParams(window.location.search);
+  const [tahun, setTahun] = useState(params.get('tahun') || '2027');
+  const [tab, setTab] = useState(params.get('tab') || 'dashboard');
+  const [urlBiro, setUrlBiro] = useState(params.get('biro') || '');
+  const [urlVersi, setUrlVersi] = useState(params.get('versi') || '');
   const [refreshKey, setRefreshKey] = useState(0);
   const [periode, setPeriode] = useState(null);
   const [progress, setProgress] = useState(0);
@@ -47,6 +50,14 @@ export default function RenjaPerubahan() {
   }, [tahun]);
 
   const refreshAll = () => setRefreshKey(k => k + 1);
+
+  // Sinkronkan tab biro/versi dari URL (mis. dari tombol di tab lain)
+  const setTabAndUrl = (v) => {
+    setTab(v);
+    const u = new URLSearchParams(window.location.search);
+    u.set('tab', v);
+    window.history.replaceState({}, '', `?${u.toString()}`);
+  };
 
   const openAudit = async () => {
     setShowAudit(true);
@@ -111,7 +122,7 @@ export default function RenjaPerubahan() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={tab} onValueChange={setTab}>
+      <Tabs value={tab} onValueChange={setTabAndUrl}>
         <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 rounded-xl overflow-x-auto">
           <TabsTrigger value="dashboard" className="text-xs px-4 py-2 data-[state=active]:bg-card whitespace-nowrap">1. Dashboard Renja Perubahan</TabsTrigger>
           <TabsTrigger value="acuan" className="text-xs px-4 py-2 data-[state=active]:bg-card whitespace-nowrap">2. Dokumen Acuan</TabsTrigger>
@@ -127,10 +138,10 @@ export default function RenjaPerubahan() {
           <DokumenAcuanTab tahun={tahun} refreshKey={refreshKey} canManage={isAdminLike} />
         </TabsContent>
         <TabsContent value="upload" className="mt-4">
-          <UploadTab tahun={tahun} refreshKey={refreshKey} role={role} biroSaya={biroSaya} isAdminLike={isAdminLike} />
+          <UploadTab tahun={tahun} refreshKey={refreshKey} role={role} biroSaya={biroSaya} isAdminLike={isAdminLike} initialBiro={urlBiro} />
         </TabsContent>
         <TabsContent value="hasil" className="mt-4">
-          <HasilPemeriksaanTab tahun={tahun} refreshKey={refreshKey} role={role} biroSaya={biroSaya} isVerif={isVerif} isAdminLike={isAdminLike} />
+          <HasilPemeriksaanTab tahun={tahun} refreshKey={refreshKey} role={role} biroSaya={biroSaya} isVerif={isVerif} isAdminLike={isAdminLike} initialBiro={urlBiro} initialVersion={urlVersi} />
         </TabsContent>
         <TabsContent value="setda" className="mt-4">
           <SetdaTab tahun={tahun} refreshKey={refreshKey} role={role} isAdminLike={isAdminLike} isVerif={isVerif} />

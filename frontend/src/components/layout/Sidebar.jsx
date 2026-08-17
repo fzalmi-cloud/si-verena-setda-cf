@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, ClipboardCheck, FileSearch, History,
@@ -36,7 +36,7 @@ const navItems = [
   { label: 'Upload Renja', icon: FileUp, path: '/upload-renja', roles: ['admin', 'kabag', ...BIRO_ROLES] },
   { label: 'Upload Revisi', icon: GitCompare, path: '/upload-revisi', roles: ['admin', 'kabag', ...BIRO_ROLES] },
   { label: 'Pemeriksaan', icon: ClipboardCheck, path: '/pemeriksaan', roles: ['admin', 'kabag', ...VERIF_ROLES, 'pimpinan', ...BIRO_ROLES] },
-  { label: 'Renja Perubahan', icon: GitBranch, path: '/perubahan', roles: ['admin', 'kabag', ...VERIF_ROLES, 'pimpinan', ...BIRO_ROLES] },
+  { label: 'Renja Perubahan', icon: GitBranch, path: '/perubahan', roles: ['admin', 'kabag', ...VERIF_ROLES, 'pimpinan', ...BIRO_ROLES], notif: true },
   { label: 'Hasil Verifikasi', icon: FileSearch, path: '/hasil', roles: ['admin', 'kabag', ...VERIF_ROLES, 'pimpinan', ...BIRO_ROLES] },
   { label: 'Riwayat Revisi', icon: History, path: '/riwayat', roles: ['admin', 'kabag', ...VERIF_ROLES, 'pimpinan', ...BIRO_ROLES] },
   { label: 'Semua Dokumen', icon: FolderOpen, path: '/dokumen-diunggah', roles: ['admin', 'kabag', ...VERIF_ROLES] },
@@ -68,6 +68,21 @@ export default function Sidebar({ collapsed, setCollapsed, user, realUser }) {
   const location = useLocation();
   const { previewRole, setPreviewRole, exitPreview } = usePreviewRole();
   const [showRolePicker, setShowRolePicker] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
+
+  // Badge notifikasi global (modul Renja Perubahan) sesuai role
+  useEffect(() => {
+    let active = true;
+    const load = () => {
+      api.list('perubahan/notifications', { role: userRole, nama_biro: user?.nama_biro || '', limit: 30 })
+        .then(r => { if (active) setNotifCount((Array.isArray(r?.data) ? r.data : []).filter(n => !n.is_read).length); })
+        .catch(() => {});
+    };
+    load();
+    const t = setInterval(load, 60000);
+    return () => { active = false; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userRole]);
   const [showPenyusunan, setShowPenyusunan] = useState(() =>
     location.pathname.startsWith('/penyusunan')
   );
@@ -112,6 +127,11 @@ export default function Sidebar({ collapsed, setCollapsed, user, realUser }) {
             >
               <item.icon className={cn("w-5 h-5 flex-shrink-0", isActive && "text-sidebar-primary")} />
               {!collapsed && <span>{item.label}</span>}
+              {item.notif && notifCount > 0 && (
+                <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold">
+                  {notifCount}
+                </span>
+              )}
             </Link>
           );
         })}

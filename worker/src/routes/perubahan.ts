@@ -605,7 +605,7 @@ Format JSON (hanya JSON):
   ).bind(score.skor_total, score.level_kesiapan, score.has_critical_open ? 1 : 0, sub.id).run();
   await c.env.DB.prepare(
     `UPDATE renja_perubahan_versions SET extraction_status = 'berhasil', extracted_content = ? WHERE id = ?`
-  ).bind(konten.slice(0, 20000), version_id).run();
+  ).bind(konten.slice(0, 60000), version_id).run();
   await logAudit(c, 'pemeriksaan', 'rp_version', version_id, `Pemeriksaan V${version.version_number} ${sub.nama_biro}: ${allFindings.length} temuan, skor ${score.skor_total}`);
   await createNotification(c.env, 'biro', sub.nama_biro, 'selesai', `Pemeriksaan V${version.version_number} selesai: ${allFindings.length} temuan, skor ${score.skor_total}`);
   if (score.has_critical_open) {
@@ -823,4 +823,174 @@ perubahanRoutes.get('/audit', async (c) => {
     'SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ?'
   ).bind(limit).all();
   return c.json({ data: results });
+});
+
+// ══════════════ PROGRAM & MATRIKS (konsolidasi Setda) ══════════════
+
+// POST /api/perubahan/programs/extract — ekstrak program/kegiatan dari versi final (AI)
+perubahanRoutes.post('/programs/extract', async (c) => {
+  const { version_id } = await c.req.json();
+  const version: any = await c.env.DB.prepare('SELECT * FROM renja_perubahan_versions WHERE id = ?').bind(version_id).first();
+  if (!version) return c.json({ error: 'Versi tidak ditemukan' }, 404);
+  const sub: any = await c.env.DB.prepare('SELECT * FROM renja_perubahan_submissions WHERE id = ?').bind(version.submission_id).first();
+
+  const { results: refs } = await c.env.DB.prepare(
+    "SELECT * FROM renja_perubahan_references WHERE active = 1 AND document_type IN ('perubahan_rkpd','rancangan_perubahan_rkpd') ORDER BY priority ASC"
+  ).all();
+  const refContext = (refs as any[]).map(r => `- ${r.title}`).join('\n');
+
+  const provider = getLLMProvider(c.env);
+  // Selalu ekstrak ulang teks penuh dari R2 (paling andal)
+  let konten = '';
+  if (version.main_file_url && c.env.R2) {
+    const ext = await extractTextFromR2(c.env.R2, version.main_file_url, version.main_file_name);
+    konten = ext.text;
+  }
+  if (konten.trim().length < 500) konten = (version.extracted_content || '').slice(0, 60000);
+  const prompt = `Ekstrak SEMUA Program, Kegiatan dan Subkegiatan dari dokumen Renja Perubahan Biro ${sub?.nama_biro} tahun ${sub?.year} V${version.version_number}.
+
+ISI DOKUMEN:
+"""
+${konten}
+"""
+
+${refContext ? `DOKUMEN ACUAN (Perubahan RKPD):\n${refContext}\n` : ''}
+
+Untuk setiap item, ekstrak: kode program, nama program, kode kegiatan, nama kegiatan, kode subkegiatan, nama subkegiatan, indikator, target awal, target perubahan, satuan, pagu awal (angka), pagu perubahan (angka), sumber dana, lokasi, kelompok sasaran.
+FOKUS pada tabel (mis. T-C.29 / T-C.33 / matriks) di BAB III dan BAB IV. Jika dokumen memuat tabel program/kegiatan, WAJIB ekstrak baris-barisnya.
+ATURAN: hanya data yang BENAR-BENAR ada di dokumen. JANGAN mengarang. Jika tidak ada, kosongkan. TANPA indentasi/spasi berlebih agar output ringkas (format padat).
+
+Format JSON (hanya JSON, padat):
+{"programs": [{"program_code":"","program_name":"","activity_code":"","activity_name":"","subactivity_code":"","subactivity_name":"","indicator":"","target_awal":"","target_perubahan":"","satuan":"","pagu_awal":0,"pagu_perubahan":0,"sumber_dana":"","lokasi":"","kelompok_sasaran":""}]}`;
+
+  let programs: any[] = [];
+  let resp = '';
+  try {
+    resp = await provider.generate(prompt);
+    const raw = String(resp).replace(/^```(?:json)?/i, '').replace(/```$/g, '').trim();
+    const a = raw.indexOf('{'), b = raw.lastIndexOf('}');
+    const parsed = JSON.parse(raw.slice(a, b + 1));
+    programs = parsed?.programs || [];
+  } catch (e: any) { programs = []; console.log('[extract] parse gagal:', e.message); }
+
+  // Hapus data lama versi ini, simpan baru
+  await c.env.DB.prepare('DELETE FROM renja_perubahan_programs WHERE version_id = ?').bind(version_id).run();
+  let saved = 0;
+  for (const p of programs) {
+    if (!p.program_name && !p.activity_name) continue;
+    await c.env.DB.prepare(
+      `INSERT INTO renja_perubahan_programs (id, version_id, submission_id, nama_biro, year, version_number, program_code, program_name, activity_code, activity_name, subactivity_code, subactivity_name, indicator, target_awal, target_perubahan, satuan, pagu_awal, pagu_perubahan, sumber_dana, lokasi, kelompok_sasaran, source_location)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      crypto.randomUUID(), version_id, sub?.id || null, sub?.nama_biro || '', sub?.year || 0, version.version_number,
+      p.program_code || '', p.program_name || '', p.activity_code || '', p.activity_name || '',
+      p.subactivity_code || '', p.subactivity_name || '', p.indicator || '', p.target_awal || '',
+      p.target_perubahan || '', p.satuan || '', Number(p.pagu_awal) || 0, Number(p.pagu_perubahan) || 0,
+      p.sumber_dana || '', p.lokasi || '', p.kelompok_sasaran || '',
+      `V${version.version_number} — ${sub?.nama_biro || ''}`
+    ).run();
+    saved++;
+  }
+  await logAudit(c, 'extract_programs', 'rp_version', version_id, `Ekstrak program V${version.version_number} ${sub?.nama_biro}: ${saved} item`);
+  return c.json({ message: `${saved} program/kegiatan diekstrak`, programs: saved });
+});
+
+// GET /api/perubahan/programs — list data program
+perubahanRoutes.get('/programs', async (c) => {
+  const versionId = c.req.query('version_id');
+  const namaBiro = c.req.query('nama_biro');
+  const year = c.req.query('year');
+  const limit = parseInt(c.req.query('limit') || '500');
+  let q = 'SELECT * FROM renja_perubahan_programs WHERE 1=1';
+  const p: any[] = [];
+  if (versionId) { q += ' AND version_id = ?'; p.push(versionId); }
+  if (namaBiro) { q += ' AND nama_biro = ?'; p.push(namaBiro); }
+  if (year) { q += ' AND year = ?'; p.push(parseInt(year)); }
+  q += ' ORDER BY program_code, activity_code LIMIT ?';
+  p.push(limit);
+  const { results } = await c.env.DB.prepare(q).bind(...p).all();
+  return c.json({ data: results });
+});
+
+// GET /api/perubahan/setda/:id/matriks — agregasi matriks dari biro FINAL
+perubahanRoutes.get('/setda/:id/matriks', async (c) => {
+  const id = c.req.param('id');
+  const setda: any = await c.env.DB.prepare('SELECT * FROM renja_perubahan_setda WHERE id = ?').bind(id).first();
+  if (!setda) return c.json({ error: 'Tidak ditemukan' }, 404);
+  const { results: sources } = await c.env.DB.prepare(
+    'SELECT * FROM renja_perubahan_sources WHERE setda_id = ?'
+  ).bind(id).all();
+  const biroNames = (sources as any[]).map(s => s.nama_biro);
+  const { results: programs } = await c.env.DB.prepare(
+    'SELECT * FROM renja_perubahan_programs WHERE year = ? AND nama_biro IN (SELECT value FROM json_each(?))'
+  ).bind(setda.year, JSON.stringify(biroNames)).all();
+
+  // Agregasi per kode program+kegiatan, akumulasi pagu per biro, deteksi konflik
+  const map = new Map<string, any>();
+  const perBiro: Record<string, any> = {};
+  let totalPaguAwal = 0, totalPaguPerubahan = 0;
+  for (const pr of (programs as any[])) {
+    const key = `${pr.program_code || '?'}|${pr.activity_code || '?'}|${pr.subactivity_code || '?'}`;
+    const cur: any = map.get(key) || { ...pr, biro: [], pagu_awal: 0, pagu_perubahan: 0 };
+    cur.biro = [...new Set([...(cur.biro || []), pr.nama_biro])];
+    cur.pagu_awal += Number(pr.pagu_awal) || 0;
+    cur.pagu_perubahan += Number(pr.pagu_perubahan) || 0;
+    map.set(key, cur);
+    perBiro[pr.nama_biro] = perBiro[pr.nama_biro] || { pagu_awal: 0, pagu_perubahan: 0, program: 0 };
+    perBiro[pr.nama_biro].pagu_awal += Number(pr.pagu_awal) || 0;
+    perBiro[pr.nama_biro].pagu_perubahan += Number(pr.pagu_perubahan) || 0;
+    perBiro[pr.nama_biro].program++;
+    totalPaguAwal += Number(pr.pagu_awal) || 0;
+    totalPaguPerubahan += Number(pr.pagu_perubahan) || 0;
+  }
+  const rows = [...map.values()].map((r: any) => ({
+    kode: `${r.program_code || ''}.${r.activity_code || ''}.${r.subactivity_code || ''}`,
+    program: r.program_name || '', kegiatan: r.activity_name || '', subkegiatan: r.subactivity_name || '',
+    indikator: r.indicator || '', target_awal: r.target_awal || '', target_perubahan: r.target_perubahan || '',
+    satuan: r.satuan || '', pagu_awal: r.pagu_awal, pagu_perubahan: r.pagu_perubahan,
+    selisih: (Number(r.pagu_perubahan) || 0) - (Number(r.pagu_awal) || 0),
+    biro: (r.biro || []).join(', '),
+    duplikat: (r.biro || []).length > 1,
+  })).sort((a, b) => a.kode.localeCompare(b.kode));
+
+  // Konflik: kode sama tapi pagu berbeda antar biro (double counting / beda nilai)
+  const conflicts: any[] = [];
+  const byKode = new Map<string, any[]>();
+  for (const pr of (programs as any[])) {
+    const key = `${pr.program_code || '?'}.${pr.activity_code || '?'}`;
+    if (!byKode.has(key)) byKode.set(key, []);
+    byKode.get(key)!.push(pr);
+  }
+  for (const [kode, items] of byKode) {
+    const pagus = new Set(items.map((i: any) => Number(i.pagu_perubahan) || 0));
+    if (pagus.size > 1) {
+      const first = items[0];
+      const others = items.slice(1).find((i: any) => (Number(i.pagu_perubahan) || 0) !== (Number(first.pagu_perubahan) || 0));
+      conflicts.push({
+        kode, nama: first.activity_name || first.program_name || kode, field: 'pagu_perubahan',
+        nilai_biro: Number(first.pagu_perubahan) || 0, nilai_acuan: Number(others?.pagu_perubahan) || 0,
+        nama_biro: first.nama_biro, acuan_source: others?.nama_biro || '',
+      });
+    }
+  }
+
+  return c.json({
+    rows, perBiro, totalPaguAwal, totalPaguPerubahan,
+    totalSelisih: totalPaguPerubahan - totalPaguAwal,
+    conflicts, biroNames,
+  });
+});
+
+// POST /api/perubahan/setda/:id/resolve-conflict — keputusan verifikator atas konflik
+// POST /api/perubahan/setda/:id/resolve-conflict — keputusan verifikator atas konflik
+perubahanRoutes.post('/setda/:id/resolve-conflict', async (c) => {
+  const id = c.req.param('id');
+  const { kode, pilih } = await c.req.json(); // pilih: 'biro' | 'acuan'
+  const payload = (c as any).get('jwtPayload') as any;
+  await c.env.DB.prepare(
+    `INSERT INTO renja_perubahan_conflicts (id, setda_id, kode, nama, field, keputusan, decided_by, decided_at)
+     VALUES (?, ?, ?, ?, 'pagu_perubahan', ?, ?, datetime('now'))`
+  ).bind(crypto.randomUUID(), id, kode || '', 'Konflik data', pilih, payload?.email || 'sistem').run();
+  await logAudit(c, 'resolve_conflict', 'rp_setda', id, `Konflik ${kode} diputuskan: pakai ${pilih}`);
+  return c.json({ message: `Keputusan dicatat: pakai ${pilih}` });
 });
