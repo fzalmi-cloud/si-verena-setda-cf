@@ -24,13 +24,15 @@ export type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-// CORS — izinkan origin frontend baru + preview Pages + localhost dev
+// CORS — izinkan origin frontend (Pages subdomain + custom domain) + preview + localhost dev
 app.use('/api/*', cors({
   origin: (origin) => {
-    if (!origin) return 'https://si-verena-setda-web.pages.dev';
+    if (!origin) return 'https://siverena.id';
     const allowed = [
       'http://localhost:5173',
       'https://si-verena-setda-web.pages.dev',
+      'https://siverena.id',
+      'https://www.siverena.id',
     ];
     if (allowed.includes(origin)) return origin;
     // Preview deployment Pages: <hash>.si-verena-setda-web.pages.dev
