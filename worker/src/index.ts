@@ -24,9 +24,19 @@ export type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-// CORS
+// CORS — izinkan origin frontend baru + preview Pages + localhost dev
 app.use('/api/*', cors({
-  origin: ['http://localhost:5173', 'https://si-verena-setda.pages.dev'],
+  origin: (origin) => {
+    if (!origin) return 'https://si-verena-setda-web.pages.dev';
+    const allowed = [
+      'http://localhost:5173',
+      'https://si-verena-setda-web.pages.dev',
+    ];
+    if (allowed.includes(origin)) return origin;
+    // Preview deployment Pages: <hash>.si-verena-setda-web.pages.dev
+    if (origin.endsWith('.si-verena-setda-web.pages.dev')) return origin;
+    return null; // origin lain ditolak (CORS header tidak dikirim)
+  },
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
