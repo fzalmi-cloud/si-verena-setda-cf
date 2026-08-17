@@ -23,7 +23,7 @@ import PeriodeRenja from '@/pages/PeriodeRenja';
 import Profil from '@/pages/Profil';
 import UploadRenja from '@/pages/UploadRenja';
 import UploadRevisi from '@/pages/UploadRevisi';
-import CatatanVerifikasiBappeda from '@/pages/CatatanVerifikasiBappeda';
+import CatatanVerifikasiBappeda from '@/pages/FileReferensi';
 import FileReferensi from '@/pages/FileReferensi';
 import DokumenDiunggah from '@/pages/DokumenDiunggah';
 import DashboardPenyusunan from '@/pages/penyusunan/DashboardPenyusunan';

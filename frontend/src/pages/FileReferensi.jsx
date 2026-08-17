@@ -9,7 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { BookOpen, Plus, Trash2, FileText, Upload, Loader2, CheckCircle2, X, AlertCircle, ExternalLink, Files } from 'lucide-react';
+import { BookOpen, Plus, Trash2, FileText, Upload, Loader2, CheckCircle2, X, AlertCircle, ExternalLink, Files, ClipboardList } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import CatatanBappedaSection from '@/components/verifikasi/CatatanBappedaSection';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -156,13 +158,26 @@ export default function FileReferensi() {
         <div>
           <h1 className="text-2xl font-display font-bold">File Referensi AI</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Kelola file pedoman dan referensi yang digunakan AI untuk memeriksa dokumen Renja. Hanya dapat diakses administrator.
+            Kelola file pedoman, peraturan, dan catatan verifikasi yang menjadi acuan. Hanya dapat diakses administrator.
           </p>
         </div>
         <Button onClick={() => setShowDialog(true)}>
           <Plus className="w-4 h-4 mr-2" /> Tambah Referensi
         </Button>
       </div>
+
+      <Tabs defaultValue="files">
+        <TabsList className="bg-muted/50 rounded-xl p-1">
+          <TabsTrigger value="files" className="text-xs px-4 py-1.5 data-[state=active]:bg-card">
+            <BookOpen className="w-3.5 h-3.5 mr-1.5" /> File Referensi
+          </TabsTrigger>
+          <TabsTrigger value="bappeda" className="text-xs px-4 py-1.5 data-[state=active]:bg-card">
+            <ClipboardList className="w-3.5 h-3.5 mr-1.5" /> Catatan Bappeda
+            <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">pelengkap</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="files" className="mt-4 space-y-4">
 
       {/* Info banner */}
       <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 border border-blue-200 text-sm text-blue-800">
@@ -343,6 +358,12 @@ export default function FileReferensi() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+        </TabsContent>
+
+        <TabsContent value="bappeda" className="mt-4">
+          <CatatanBappedaSection />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
