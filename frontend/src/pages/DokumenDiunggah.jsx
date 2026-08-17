@@ -49,6 +49,11 @@ export default function DokumenDiunggah() {
   const role = user?.role;
   const queryClient = useQueryClient();
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
+  const [bulkNewStatus, setBulkNewStatus] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [filterBiro, setFilterBiro] = useState('semua');
   const [filterJenis, setFilterJenis] = useState('semua');
   const [filterStatus, setFilterStatus] = useState('semua');
@@ -77,6 +82,52 @@ export default function DokumenDiunggah() {
       setDeleteTarget(null);
     },
   });
+
+  // ── Batch / Bulk operations ────────────────────────────────────────────────
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const selectAllFiltered = () => {
+    const ids = filtered.map(d => d.id);
+    const allSelected = ids.length > 0 && ids.every(id => selectedIds.includes(id));
+    if (allSelected) setSelectedIds(prev => prev.filter(id => !ids.includes(id)));
+    else setSelectedIds(prev => [...new Set([...prev, ...ids])]);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const res = await api.bulkDelete('dokumen', selectedIds);
+      queryClient.invalidateQueries({ queryKey: ['dokumen-renja-all'] });
+      queryClient.invalidateQueries({ queryKey: ['dokumen-renja'] });
+      toast.success(res.message || `${selectedIds.length} dokumen dihapus`);
+      setSelectedIds([]);
+      setBulkDeleteOpen(false);
+    } catch (err) {
+      toast.error('Gagal hapus massal: ' + err.message);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkStatus = async () => {
+    if (selectedIds.length === 0 || !bulkNewStatus) return;
+    setBulkBusy(true);
+    try {
+      const res = await api.bulkUpdate('dokumen', selectedIds, { status_dokumen: bulkNewStatus });
+      queryClient.invalidateQueries({ queryKey: ['dokumen-renja-all'] });
+      queryClient.invalidateQueries({ queryKey: ['dokumen-renja'] });
+      toast.success(res.message || `Status ${selectedIds.length} dokumen diperbarui`);
+      setSelectedIds([]);
+      setBulkNewStatus('');
+      setBulkStatusOpen(false);
+    } catch (err) {
+      toast.error('Gagal ubah status massal: ' + err.message);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   // Batasi data sesuai role
   const allowedBiroNames = biroList.map(b => b.nama_biro);
@@ -166,6 +217,22 @@ export default function DokumenDiunggah() {
         </Select>
       </div>
 
+      {/* Aksi massal (batch) */}
+      {selectedIds.length > 0 && (
+        <div className="flex items-center justify-between gap-3 bg-primary/5 border border-primary/20 rounded-xl p-3">
+          <p className="text-sm font-medium text-primary">{selectedIds.length} dokumen dipilih</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button size="sm" variant="outline" onClick={() => setBulkStatusOpen(true)}>
+              Ubah Status Terpilih
+            </Button>
+            <Button size="sm" variant="outline" className="text-destructive hover:bg-destructive/10" onClick={() => setBulkDeleteOpen(true)}>
+              <Trash2 className="w-3.5 h-3.5 mr-1" /> Hapus Terpilih
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>Batal Pilih</Button>
+          </div>
+        </div>
+      )}
+
       {/* Tabel dokumen */}
       {isLoading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
@@ -180,6 +247,15 @@ export default function DokumenDiunggah() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40">
+                  <th className="px-4 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      className="rounded"
+                      checked={filtered.length > 0 && filtered.every(d => selectedIds.includes(d.id))}
+                      onChange={selectAllFiltered}
+                      title="Pilih semua di halaman ini"
+                    />
+                  </th>
                   <th className="text-left px-4 py-3 font-semibold text-xs text-muted-foreground">Unit</th>
                   <th className="text-left px-4 py-3 font-semibold text-xs text-muted-foreground">Level</th>
                   <th className="text-left px-4 py-3 font-semibold text-xs text-muted-foreground">Tahun</th>
@@ -196,7 +272,15 @@ export default function DokumenDiunggah() {
                   const isDuplikat = duplikatIds.has(d.id);
                   const statusCfg = STATUS_CONFIG[d.status_upload] || STATUS_CONFIG.diunggah;
                   return (
-                    <tr key={d.id} className={`hover:bg-muted/20 transition-colors ${isDuplikat ? 'bg-amber-50/50' : ''}`}>
+                    <tr key={d.id} className={`hover:bg-muted/20 transition-colors ${isDuplikat ? 'bg-amber-50/50' : ''} ${selectedIds.includes(d.id) ? 'bg-primary/5' : ''}`}>
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          className="rounded"
+                          checked={selectedIds.includes(d.id)}
+                          onChange={() => toggleSelect(d.id)}
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-xs">{d.nama_biro}</span>
@@ -265,6 +349,54 @@ export default function DokumenDiunggah() {
           </div>
         </div>
       )}
+
+      {/* Dialog hapus massal */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus {selectedIds.length} Dokumen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedIds.length} dokumen terpilih akan dihapus permanen beserta file-nya dan hasil pemeriksaan terkait. Tindakan ini tidak bisa dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkBusy}>Batal</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleBulkDelete} disabled={bulkBusy}>
+              {bulkBusy ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Hapus {selectedIds.length} Dokumen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog ubah status massal */}
+      <AlertDialog open={bulkStatusOpen} onOpenChange={setBulkStatusOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ubah Status {selectedIds.length} Dokumen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Status penanda (status_dokumen) akan diterapkan ke semua dokumen terpilih.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3">
+            <Select value={bulkNewStatus} onValueChange={setBulkNewStatus}>
+              <SelectTrigger><SelectValue placeholder="Pilih status baru..." /></SelectTrigger>
+              <SelectContent>
+                {Object.entries(STATUS_DOK_BADGE).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkBusy}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkStatus} disabled={bulkBusy || !bulkNewStatus}>
+              {bulkBusy ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Terapkan
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialog hapus */}
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>

@@ -114,6 +114,127 @@ dokumenRoutes.post('/', async (c) => {
   }
 });
 
+// POST /api/dokumen/bulk — buat banyak dokumen sekaligus (batch upload)
+dokumenRoutes.post('/bulk', async (c) => {
+  try {
+    const { items } = await c.req.json();
+    if (!Array.isArray(items) || items.length === 0) {
+      return c.json({ error: 'items wajib berupa array non-kosong' }, 400);
+    }
+
+    let created = 0;
+    const ids: string[] = [];
+    const failed: { nama?: string; error: string }[] = [];
+
+    for (const body of items) {
+      const id = crypto.randomUUID();
+      try {
+        await c.env.DB.prepare(
+          `INSERT INTO dokumen_renja (id, biro_id, nama_biro, periode_tahun, level_unit, jenis_dokumen, sub_jenis, nama_file, file_url, file_key, file_size, status_upload, catatan_upload)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(
+          id,
+          body.biro_id || null,
+          body.nama_biro,
+          body.periode_tahun,
+          body.level_unit || 'biro',
+          body.jenis_dokumen,
+          body.sub_jenis || null,
+          body.nama_file,
+          body.file_url || null,
+          body.file_key || null,
+          body.file_size || 0,
+          body.status_upload || 'diunggah',
+          body.catatan_upload || null
+        ).run();
+        created++;
+        ids.push(id);
+      } catch (e: any) {
+        failed.push({ nama: body.nama_file || body.nama_biro, error: e.message });
+      }
+    }
+
+    return c.json({
+      message: `${created} dokumen dibuat${failed.length ? `, ${failed.length} gagal` : ''}`,
+      created,
+      ids,
+      failed: failed.length > 0 ? failed : undefined,
+    }, created > 0 ? 201 : 500);
+  } catch (error: any) {
+    return c.json({ error: 'Gagal bulk create', detail: error.message }, 500);
+  }
+});
+
+// POST /api/dokumen/bulk-delete — hapus banyak dokumen sekaligus (+ file R2 + hasil pemeriksaan)
+dokumenRoutes.post('/bulk-delete', async (c) => {
+  try {
+    const { ids } = await c.req.json();
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return c.json({ error: 'ids wajib berupa array non-kosong' }, 400);
+    }
+
+    let deleted = 0;
+    const notFound: string[] = [];
+
+    for (const id of ids) {
+      const dok: any = await c.env.DB.prepare(
+        'SELECT id, file_key FROM dokumen_renja WHERE id = ?'
+      ).bind(id).first();
+      if (!dok) { notFound.push(id); continue; }
+
+      await c.env.DB.prepare('DELETE FROM dokumen_renja WHERE id = ?').bind(id).run();
+      // Hapus hasil pemeriksaan yang menautkan dokumen ini
+      await c.env.DB.prepare('DELETE FROM hasil_pemeriksaan WHERE dokumen_renja_id = ?').bind(id).run();
+      // Hapus file fisik dari R2 bila ada
+      if (dok.file_key && c.env.R2) {
+        try { await c.env.R2.delete(dok.file_key); } catch { /* file sudah tidak ada */ }
+      }
+      deleted++;
+    }
+
+    return c.json({
+      message: `${deleted} dokumen dihapus${notFound.length ? `, ${notFound.length} tidak ditemukan` : ''}`,
+      deleted,
+      notFound: notFound.length > 0 ? notFound : undefined,
+    });
+  } catch (error: any) {
+    return c.json({ error: 'Gagal bulk delete', detail: error.message }, 500);
+  }
+});
+
+// PUT /api/dokumen/bulk — update banyak dokumen sekaligus dengan field yang sama
+dokumenRoutes.put('/bulk', async (c) => {
+  try {
+    const { ids, data } = await c.req.json();
+    if (!Array.isArray(ids) || ids.length === 0 || !data || typeof data !== 'object') {
+      return c.json({ error: 'ids dan data wajib diisi' }, 400);
+    }
+
+    const sets: string[] = ["updated_at = datetime('now')"];
+    const params: any[] = [];
+    for (const [key, value] of Object.entries(data)) {
+      if (key === 'id' || value === undefined) continue;
+      sets.push(`${key} = ?`);
+      params.push(value);
+    }
+    if (sets.length === 1) {
+      return c.json({ error: 'Tidak ada field yang diupdate' }, 400);
+    }
+
+    let updated = 0;
+    for (const id of ids) {
+      await c.env.DB.prepare(
+        `UPDATE dokumen_renja SET ${sets.join(', ')} WHERE id = ?`
+      ).bind(...params, id).run();
+      updated++;
+    }
+
+    return c.json({ message: `${updated} dokumen diperbarui`, updated });
+  } catch (error: any) {
+    return c.json({ error: 'Gagal bulk update', detail: error.message }, 500);
+  }
+});
+
 // PUT /api/dokumen/:id — update dokumen
 dokumenRoutes.put('/:id', async (c) => {
   const id = c.req.param('id');
@@ -123,10 +244,14 @@ dokumenRoutes.put('/:id', async (c) => {
   const params: any[] = [];
 
   for (const [key, value] of Object.entries(body)) {
-    if (key !== 'id') {
+    if (key !== 'id' && value !== undefined) {
       sets.push(`${key} = ?`);
       params.push(value);
     }
+  }
+
+  if (sets.length === 0) {
+    return c.json({ error: 'Tidak ada field yang diupdate' }, 400);
   }
 
   sets.push("updated_at = datetime('now')");

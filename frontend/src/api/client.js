@@ -101,6 +101,22 @@ class ApiClient {
     });
   }
 
+  // Bulk delete (POST /api/:entity/bulk-delete dengan daftar id)
+  bulkDelete(entity, ids) {
+    return this.request(`/api/${entity}/bulk-delete`, {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+  }
+
+  // Bulk update (PUT /api/:entity/bulk dengan ids + data)
+  bulkUpdate(entity, ids, data) {
+    return this.request(`/api/${entity}/bulk`, {
+      method: 'PUT',
+      body: JSON.stringify({ ids, data }),
+    });
+  }
+
   // LLM
   generateLLM(prompt, options = {}) {
     return this.request('/api/llm/generate', {
