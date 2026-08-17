@@ -13,8 +13,10 @@
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "fflate": "^0.8.3",
     "hono": "^4.6.0",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "unpdf": "^1.8.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241218.0",
