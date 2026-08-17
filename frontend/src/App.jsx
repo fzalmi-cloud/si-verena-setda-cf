@@ -14,7 +14,7 @@ import Dashboard from '@/pages/Dashboard';
 
 import AppLayout from '@/components/layout/AppLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import Pemeriksaan from '@/pages/Pemeriksaan';
+import Pemeriksaan from '@/pages/StatusPemeriksaan';
 import HasilVerifikasi from '@/pages/HasilVerifikasi';
 import RiwayatRevisi from '@/pages/RiwayatRevisi';
 import MasterBiro from '@/pages/MasterBiro';
@@ -22,7 +22,6 @@ import KelolaPengguna from '@/pages/KelolaPengguna';
 import PeriodeRenja from '@/pages/PeriodeRenja';
 import Profil from '@/pages/Profil';
 import UploadRenja from '@/pages/UploadRenja';
-import StatusPemeriksaan from '@/pages/StatusPemeriksaan';
 import UploadRevisi from '@/pages/UploadRevisi';
 import CatatanVerifikasiBappeda from '@/pages/CatatanVerifikasiBappeda';
 import FileReferensi from '@/pages/FileReferensi';
@@ -51,6 +50,7 @@ function App() {
               <Route element={<AppLayout />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/pemeriksaan" element={<Pemeriksaan />} />
+                <Route path="/status-pemeriksaan" element={<Pemeriksaan />} />
                 <Route path="/hasil" element={<HasilVerifikasi />} />
                 <Route path="/riwayat" element={<RiwayatRevisi />} />
                 <Route path="/master-biro" element={<MasterBiro />} />
@@ -58,7 +58,6 @@ function App() {
                 <Route path="/profil" element={<Profil />} />
                 <Route path="/pengguna" element={<KelolaPengguna />} />
                 <Route path="/upload-renja" element={<UploadRenja />} />
-                <Route path="/status-pemeriksaan" element={<StatusPemeriksaan />} />
                 <Route path="/upload-revisi" element={<UploadRevisi />} />
                 <Route path="/catatan-bappeda" element={<CatatanVerifikasiBappeda />} />
                 <Route path="/file-referensi" element={<FileReferensi />} />

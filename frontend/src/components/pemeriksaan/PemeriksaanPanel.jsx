@@ -21,26 +21,25 @@ import { SETDA_NAME } from '@/pages/UploadRenja';
 
 const NARRATIVE_JENIS = ['narasi_renja', 'renja_biro', 'draft_renja_setda', 'revisi_renja'];
 
-// Alur pemeriksaan:
-// 1. Pilih biro → Jalankan Pemeriksaan AI  (status: sedang_diperiksa)
-// 2. AI selesai → verifikator bisa review tiap item
-// 3. Verifikator: Setujui / Tolak / Intervensi manual
-//    - Setujui  → status_final = layak_kirim
-//    - Tolak    → status_final = perlu_revisi
-//    - Intervensi → simpan perubahan manual, status divalidasi
-
-export default function Pemeriksaan() {
+// Panel Pemeriksaan Detail — dapat di-embed di halaman gabungan.
+// State biro/tahun di-sinkron dari parent (props biro/tahun + callback).
+export default function PemeriksaanPanel({ biro: initialBiro = '', tahun: initialTahun = '2027', onBiroChange, onTahunChange }) {
   const { user } = useAuth();
   const role = user?.role;
   const queryClient = useQueryClient();
-  const params = new URLSearchParams(window.location.search);
-  const [selectedBiro, setSelectedBiro] = useState(params.get('biro') || '');
-  const [tahun, setTahun] = useState(params.get('tahun') || '2027');
+  const [selectedBiro, setSelectedBiroState] = useState(initialBiro);
+  const [tahun, setTahunState] = useState(initialTahun);
   const [localResults, setLocalResults] = useState([]);
   const [saving, setSaving] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [autoProgress, setAutoProgress] = useState(null);
+
+  // Sinkron dari parent
+  useEffect(() => { setSelectedBiroState(initialBiro); }, [initialBiro]);
+  useEffect(() => { setTahunState(initialTahun); }, [initialTahun]);
+  const setSelectedBiro = (v) => { setSelectedBiroState(v); onBiroChange?.(v); };
+  const setTahun = (v) => { setTahunState(v); onTahunChange?.(v); };
 
   const { data: allBiroResponse = { data: [] } } = useQuery({
     queryKey: ['biro-list'],
@@ -99,7 +98,6 @@ export default function Pemeriksaan() {
     setSaving(true);
     setAutoProgress({ step: 0, total: 6, kategori: 'Mempersiapkan...' });
 
-    // Init kelengkapan dokumen (review manual)
     const kelengkapanItems = CHECKLIST_ITEMS.kelengkapan_dokumen;
     const toInitKelengkapan = kelengkapanItems
       .filter(item => !existingResults.find(r => r.item_pemeriksaan === item.item && r.kategori === 'kelengkapan_dokumen'))
@@ -137,7 +135,6 @@ export default function Pemeriksaan() {
         queryClient,
       });
 
-      // Set status sedang_diperiksa
       await upsertSkor({ status_final: 'sedang_diperiksa' });
 
       queryClient.invalidateQueries({ queryKey: ['hasil-pemeriksaan'] });
@@ -151,7 +148,6 @@ export default function Pemeriksaan() {
     }
   };
 
-  // ── Helper upsert skor ────────────────────────────────────────────────────
   const upsertSkor = async (extraData = {}) => {
     const scores = calculateScore(localResults.length > 0 ? localResults : existingResults);
     const scoreData = {
@@ -174,7 +170,6 @@ export default function Pemeriksaan() {
     }
   };
 
-  // ── Setujui ───────────────────────────────────────────────────────────────
   const handleApprove = async (catatan) => {
     setSaving(true);
     try {
@@ -200,12 +195,10 @@ export default function Pemeriksaan() {
     }
   };
 
-  // ── Tolak ─────────────────────────────────────────────────────────────────
   const handleReject = async (catatan) => {
     setSaving(true);
     try {
       await upsertSkor({ status_final: 'perlu_revisi' });
-      // Catat catatan penolakan ke semua item yang bermasalah
       const bermasalah = localResults.filter(r => r.status !== 'sesuai' && r.status !== 'tidak_berlaku');
       for (const r of bermasalah) {
         if (r.id) {
@@ -224,7 +217,6 @@ export default function Pemeriksaan() {
     }
   };
 
-  // ── Intervensi manual ─────────────────────────────────────────────────────
   const handleSaveIntervention = async () => {
     setSaving(true);
     try {
@@ -251,7 +243,6 @@ export default function Pemeriksaan() {
     }
   };
 
-  // ── Reset pemeriksaan (hapus hasil + skor utk biro+tahun) ──────────────────
   const handleReset = async () => {
     if (!selectedBiro) return;
     setResetting(true);
@@ -295,32 +286,10 @@ export default function Pemeriksaan() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-display font-bold">Pemeriksaan Dokumen Renja</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            AI memeriksa otomatis berdasarkan dokumen yang diunggah → verifikator setujui / tolak / intervensi
-          </p>
-        </div>
-        {statusFinal && (
-          <Badge variant="outline" className={`text-sm px-3 py-1 ${statusBadge[statusFinal]?.cls || ''}`}>
-            {statusBadge[statusFinal]?.label || statusFinal}
-          </Badge>
-        )}
-      </div>
-
-      {/* Info file referensi */}
-      {fileReferensi.length > 0 && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
-          <BookOpen className="w-4 h-4 flex-shrink-0" />
-          <span>AI akan menggunakan <strong>{fileReferensi.length} file referensi</strong> dari halaman File Referensi AI sebagai pedoman pemeriksaan</span>
-        </div>
-      )}
-
       {/* Filter + Tombol AI */}
       <div className="flex items-end gap-4 bg-card rounded-xl border border-border p-4 flex-wrap">
         <div className="flex-1 min-w-[200px] max-w-xs">
-          <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Biro</label>
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Biro / Unit</label>
           <Select value={selectedBiro} onValueChange={setSelectedBiro}>
             <SelectTrigger><SelectValue placeholder="Pilih biro/unit" /></SelectTrigger>
             <SelectContent>
@@ -345,7 +314,20 @@ export default function Pemeriksaan() {
             : <><Bot className="w-4 h-4 mr-2" />{aiSudahJalan ? 'Periksa Ulang (AI)' : 'Jalankan Pemeriksaan AI'}</>
           }
         </Button>
+        {statusFinal && (
+          <Badge variant="outline" className={`text-sm px-3 py-1 ${statusBadge[statusFinal]?.cls || ''}`}>
+            {statusBadge[statusFinal]?.label || statusFinal}
+          </Badge>
+        )}
       </div>
+
+      {/* Info file referensi */}
+      {fileReferensi.length > 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+          <BookOpen className="w-4 h-4 flex-shrink-0" />
+          <span>AI akan menggunakan <strong>{fileReferensi.length} file referensi</strong> dari halaman File Referensi AI sebagai pedoman pemeriksaan</span>
+        </div>
+      )}
 
       {/* Banner progres AI */}
       {autoProgress && (
@@ -369,7 +351,6 @@ export default function Pemeriksaan() {
       {/* Hasil pemeriksaan */}
       {localResults.length > 0 && !autoProgress && (
         <>
-          {/* Info alur */}
           <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm">
             <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <span className="text-amber-800 text-xs">
@@ -378,7 +359,6 @@ export default function Pemeriksaan() {
             </span>
           </div>
 
-          {/* Skor preview */}
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
             {Object.entries(KATEGORI_LABELS).map(([key, label]) => {
               const scoreKey = `skor_${key === 'kelengkapan_dokumen' ? 'kelengkapan' : key === 'sistematika_dokumen' ? 'sistematika' : key === 'tabel_wajib' ? 'tabel' : key === 'matriks_renja' ? 'matriks' : key === 'konsistensi_angka' ? 'konsistensi' : key === 'substansi_bab' ? 'substansi' : 'total'}`;
@@ -391,7 +371,6 @@ export default function Pemeriksaan() {
             })}
           </div>
 
-          {/* Statistik ringkas */}
           <div className="flex items-center gap-4 text-xs flex-wrap">
             {[
               { label: 'Sesuai', count: localResults.filter(r => r.status === 'sesuai').length, color: 'text-emerald-600' },
@@ -403,7 +382,6 @@ export default function Pemeriksaan() {
             ))}
           </div>
 
-          {/* ── Panel keputusan verifikator ── */}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <VerifikatorActions
               onApprove={handleApprove}
@@ -418,7 +396,6 @@ export default function Pemeriksaan() {
             </Button>
           </div>
 
-          {/* Dialog konfirmasi reset */}
           <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
             <AlertDialogContent>
               <AlertDialogHeader>
@@ -437,7 +414,6 @@ export default function Pemeriksaan() {
             </AlertDialogContent>
           </AlertDialog>
 
-          {/* Checklist per kategori */}
           <Tabs defaultValue="kelengkapan_dokumen">
             <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 rounded-xl">
               {Object.entries(KATEGORI_LABELS).map(([key, label]) => {

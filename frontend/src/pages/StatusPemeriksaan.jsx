@@ -3,15 +3,14 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { api } from '@/api/client';
-import { Link } from 'react-router-dom';
 import { filterBiroByRole, isRestrictedRole } from '@/lib/roleAccess';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
+import PemeriksaanPanel from '@/components/pemeriksaan/PemeriksaanPanel';
 import {
   CheckCircle2, AlertTriangle, XCircle, Clock, Eye,
-  BarChart2, ChevronRight, Bot, RefreshCw, Building2
+  BarChart2, ChevronRight, Bot, RefreshCw, Building2, ClipboardCheck
 } from 'lucide-react';
 import { SETDA_NAME } from '@/pages/UploadRenja';
 
@@ -44,10 +43,13 @@ function SkorBar({ label, skor, color }) {
   );
 }
 
+// Halaman GABUNGAN: Status Pemeriksaan (ringkasan semua biro) + Pemeriksaan Detail
 export default function StatusPemeriksaan() {
   const { user } = useAuth();
   const role = user?.role;
-  const [tahun, setTahun] = useState('2027');
+  const params = new URLSearchParams(window.location.search);
+  const [tahun, setTahun] = useState(params.get('tahun') || '2027');
+  const [selectedBiro, setSelectedBiro] = useState(params.get('biro') || '');
   const [expand, setExpand] = useState(null);
 
   const { data: allBiroResp } = useQuery({
@@ -69,7 +71,6 @@ export default function StatusPemeriksaan() {
   });
   const hasilList = Array.isArray(hasilResp?.data) ? hasilResp.data : [];
 
-  // Sembunyikan SETDA untuk role yang dibatasi
   const showSetda = !isRestrictedRole(role);
 
   // Statistik ringkas
@@ -94,16 +95,28 @@ export default function StatusPemeriksaan() {
     return { ...biro, skor, hasilCount: hasilBiro.length, autoSelesai, perluReview };
   });
 
+  const selectBiro = (namaBiro, id) => {
+    setSelectedBiro(namaBiro);
+    setExpand(prev => prev === id ? null : id);
+    // scroll ke panel detail di layar kecil
+    setTimeout(() => {
+      const el = document.getElementById('panel-detail');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-display font-bold">Status Pemeriksaan Dokumen</h1>
-          <p className="text-sm text-muted-foreground mt-1">Pantau progres verifikasi Renja seluruh Biro</p>
+          <h1 className="text-2xl font-display font-bold">Pemeriksaan Dokumen Renja</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Status seluruh biro + detail pemeriksaan AI dalam satu halaman
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <TahunSelect value={tahun} onValueChange={setTahun} />
+          <TahunSelect value={tahun} onValueChange={(v) => { setTahun(v); if (!params.get('tahun')) window.history.replaceState({}, '', `?tahun=${v}`); }} />
           <Button variant="outline" size="icon" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4" />
           </Button>
@@ -141,30 +154,34 @@ export default function StatusPemeriksaan() {
         </div>
       )}
 
-      {/* Tabel per Biro */}
+      {/* Tabel Status Per Biro */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-border bg-muted/30">
+        <div className="px-5 py-3.5 border-b border-border bg-muted/30 flex items-center justify-between">
           <h2 className="text-sm font-semibold font-heading">Status Per Biro</h2>
+          <span className="text-[10px] text-muted-foreground">Klik baris / tombol Periksa untuk membuka detail di bawah</span>
         </div>
         <div className="divide-y divide-border">
           {biroWithSkor.map((biro) => {
             const skor = biro.skor;
             const isExpanded = expand === biro.id;
+            const isSelected = selectedBiro === biro.nama_biro;
             const statusCfg = STATUS_FINAL_CONFIG[skor?.status_final || 'draft'];
             const levelCfg = skor ? LEVEL_CONFIG[skor.level_kesiapan || 'belum_layak'] : null;
 
             return (
-              <div key={biro.id}>
+              <div key={biro.id} className={isSelected ? 'bg-primary/5' : ''}>
                 <div
                   className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/20 cursor-pointer"
-                  onClick={() => setExpand(isExpanded ? null : biro.id)}
+                  onClick={() => selectBiro(biro.nama_biro, biro.id)}
                 >
-                  {/* Nama biro/unit */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium truncate">{biro.nama_biro}</p>
                       {biro._isSetda && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full border font-medium bg-purple-50 text-purple-700 border-purple-200 flex-shrink-0">SETDA</span>
+                      )}
+                      {isSelected && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold flex-shrink-0">Detail aktif</span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
@@ -182,7 +199,6 @@ export default function StatusPemeriksaan() {
                     </div>
                   </div>
 
-                  {/* Skor total */}
                   {skor ? (
                     <div className="w-32 text-right">
                       <p className={`text-lg font-bold font-display ${levelCfg?.color}`}>{skor.skor_total}</p>
@@ -194,7 +210,6 @@ export default function StatusPemeriksaan() {
                     </div>
                   )}
 
-                  {/* Progres bar */}
                   <div className="w-28 hidden sm:block">
                     <div className="h-2 rounded-full bg-muted overflow-hidden">
                       <div
@@ -204,13 +219,10 @@ export default function StatusPemeriksaan() {
                     </div>
                   </div>
 
-                  {/* Actions */}
                   <div className="flex items-center gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                    <Link to={`/pemeriksaan?biro=${encodeURIComponent(biro.nama_biro)}&tahun=${tahun}`}>
-                      <Button size="sm" variant="outline" className="text-xs h-7">
-                        <Eye className="w-3 h-3 mr-1" /> Periksa
-                      </Button>
-                    </Link>
+                    <Button size="sm" variant={isSelected ? 'default' : 'outline'} className="text-xs h-7" onClick={() => selectBiro(biro.nama_biro, biro.id)}>
+                      <Eye className="w-3 h-3 mr-1" /> {isSelected ? 'Detail Aktif' : 'Periksa'}
+                    </Button>
                     <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                   </div>
                 </div>
@@ -235,6 +247,15 @@ export default function StatusPemeriksaan() {
             );
           })}
         </div>
+      </div>
+
+      {/* Panel Detail Pemeriksaan (gabungan) */}
+      <div id="panel-detail" className="scroll-mt-6">
+        <div className="flex items-center gap-2 mb-2">
+          <ClipboardCheck className="w-5 h-5 text-primary" />
+          <h2 className="text-lg font-display font-bold">Detail Pemeriksaan {selectedBiro ? `— ${selectedBiro}` : ''}</h2>
+        </div>
+        <PemeriksaanPanel biro={selectedBiro} tahun={tahun} onBiroChange={setSelectedBiro} onTahunChange={setTahun} />
       </div>
     </div>
   );
