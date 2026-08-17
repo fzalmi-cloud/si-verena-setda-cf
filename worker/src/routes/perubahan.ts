@@ -405,6 +405,54 @@ perubahanRoutes.post('/versions', async (c) => {
   return c.json({ id, version_number: nextVersion, nomor_registrasi: registrasi }, 201);
 });
 
+// DELETE /api/perubahan/versions/:id — hapus versi yang salah upload
+// (ikut menghapus temuan, program, file R2; versi & status submission menyesuaikan)
+perubahanRoutes.delete('/versions/:id', async (c) => {
+  const id = c.req.param('id');
+  const version: any = await c.env.DB.prepare(
+    'SELECT * FROM renja_perubahan_versions WHERE id = ?'
+  ).bind(id).first();
+  if (!version) return c.json({ error: 'Versi tidak ditemukan' }, 404);
+
+  // Hapus temuan & data program versi ini
+  await c.env.DB.prepare('DELETE FROM renja_perubahan_findings WHERE version_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM renja_perubahan_programs WHERE version_id = ?').bind(id).run();
+
+  // Hapus file fisik dari R2 (dokumen utama + lampiran)
+  if (version.main_file_url && c.env.R2) {
+    const m = version.main_file_url.match(/\/api\/files\/(.+)$/);
+    if (m) { try { await c.env.R2.delete(decodeURIComponent(m[1])); } catch { /* sudah tidak ada */ } }
+  }
+  try {
+    const lamp = JSON.parse(version.lampiran_urls || '[]');
+    for (const l of (lamp as any[])) {
+      const mm = String(l?.url || '').match(/\/api\/files\/(.+)$/);
+      if (mm) { try { await c.env.R2.delete(decodeURIComponent(mm[1])); } catch {} }
+    }
+  } catch { /* lampiran tidak valid */ }
+
+  await c.env.DB.prepare('DELETE FROM renja_perubahan_versions WHERE id = ?').bind(id).run();
+
+  // Perbarui submission: hitung ulang versi & status
+  const { results: remaining } = await c.env.DB.prepare(
+    'SELECT version_number FROM renja_perubahan_versions WHERE submission_id = ? ORDER BY version_number DESC'
+  ).bind(version.submission_id).all();
+  if (remaining.length === 0) {
+    await c.env.DB.prepare(
+      "UPDATE renja_perubahan_submissions SET current_version = 0, status = 'belum_upload', score = NULL, has_critical_open = 0, level_kesiapan = NULL, updated_at = datetime('now') WHERE id = ?"
+    ).bind(version.submission_id).run();
+  } else {
+    const maxV = Math.max(...(remaining as any[]).map((r: any) => r.version_number));
+    await c.env.DB.prepare(
+      "UPDATE renja_perubahan_submissions SET current_version = ?, updated_at = datetime('now') WHERE id = ?"
+    ).bind(maxV, version.submission_id).run();
+  }
+
+  await logAudit(c, 'delete_version', 'rp_version', id, `Hapus versi V${version.version_number} ${version.main_file_name || ''} (${version.submission_id})`);
+  return c.json({ message: `Versi V${version.version_number} dihapus`, sisa: remaining.length });
+});
+
+// GET /api/perubahan/versions — list data program
 // ══════════════ FINDINGS ══════════════
 perubahanRoutes.get('/findings', async (c) => {
   const submissionId = c.req.query('submission_id');

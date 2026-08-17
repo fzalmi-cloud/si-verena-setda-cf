@@ -133,6 +133,28 @@ export default function UploadTab({ tahun, refreshKey, role, biroSaya, isAdminLi
     }
   };
 
+  // Hapus versi yang salah upload (versi, temuan, program, file R2 ikut dihapus)
+  const handleDeleteVersion = async () => {
+    if (!deleteVersion) return;
+    setDelBusy(true);
+    try {
+      const resp = await api.delete('perubahan/versions', deleteVersion.id);
+      toast.success(resp.message || `Versi V${deleteVersion.version_number} dihapus`);
+      setDeleteVersion(null);
+      if (selectedBiro) {
+        const sr = await api.list('perubahan/submissions', { year: parseInt(tahunState), nama_biro: selectedBiro });
+        const sub2 = (Array.isArray(sr?.data) ? sr.data : [])[0] || null;
+        setSubmission(sub2);
+        if (sub2) {
+          const vr = await api.list('perubahan/versions', { submission_id: sub2.id });
+          setVersions(Array.isArray(vr?.data) ? vr.data : []);
+        } else setVersions([]);
+      }
+    } catch (err) {
+      toast.error('Gagal hapus versi: ' + err.message);
+    } finally { setDelBusy(false); }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
       {/* Form upload */}
@@ -264,6 +286,9 @@ export default function UploadTab({ tahun, refreshKey, role, biroSaya, isAdminLi
                       <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => window.location.href = `/perubahan?tab=hasil&versi=${v.id}`}>
                         <Bot className="w-3 h-3 mr-1" /> Periksa
                       </Button>
+                      <Button size="sm" variant="outline" className="h-6 text-[10px] text-destructive border-destructive/30 hover:bg-destructive/10" title="Hapus versi (file salah upload)" onClick={() => setDeleteVersion(v)}>
+                        <Trash2 className="w-3 h-3 mr-1" /> Hapus
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -288,6 +313,24 @@ export default function UploadTab({ tahun, refreshKey, role, biroSaya, isAdminLi
           </div>
         </DialogContent>
       </Dialog>
+      {/* Dialog konfirmasi hapus versi */}
+      <AlertDialog open={!!deleteVersion} onOpenChange={() => setDeleteVersion(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Hapus Versi V{deleteVersion?.version_number}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              File "<strong>{deleteVersion?.main_file_name}</strong>" akan dihapus beserta temuan pemeriksaan, data program, dan file di penyimpanan.
+              Versi/submission akan menyesuaikan. Tindakan ini tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={delBusy}>Batal</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleDeleteVersion} disabled={delBusy}>
+              {delBusy ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Hapus Versi
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
