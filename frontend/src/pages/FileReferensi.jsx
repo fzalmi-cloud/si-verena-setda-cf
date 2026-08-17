@@ -5,12 +5,11 @@ import { useUpload } from '@/hooks/useUpload';
 import { getFileUrl } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { BookOpen, Plus, Trash2, FileText, Upload, Loader2, CheckCircle2, X, AlertCircle, ExternalLink } from 'lucide-react';
+import { BookOpen, Plus, Trash2, FileText, Upload, Loader2, CheckCircle2, X, AlertCircle, ExternalLink, Files } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -22,34 +21,35 @@ const JENIS_LABELS = {
   lainnya: { label: 'Lainnya', color: 'bg-slate-50 text-slate-600 border-slate-200' },
 };
 
+const MAX_FILE_MB = 50;
+const ACCEPTED = '.pdf,.doc,.docx,.xls,.xlsx';
+
+function formatSize(bytes) {
+  return bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function autoJudul(namaFile) {
+  return (namaFile || '').replace(/\.[^.]+$/, '').trim() || 'Dokumen Referensi';
+}
+
 export default function FileReferensi() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { upload, uploading } = useUpload();
+  const { uploadMultiple, uploading, progress } = useUpload();
+
   const [showDialog, setShowDialog] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [uploadedFile, setUploadedFile] = useState(null);
-  const [form, setForm] = useState({ judul: '', deskripsi: '', jenis: 'pedoman_renja' });
+  const [selectedFiles, setSelectedFiles] = useState([]); // { file, name, size }
+  const [batchJenis, setBatchJenis] = useState('pedoman_renja');
+  const [batchDeskripsi, setBatchDeskripsi] = useState('');
+  const [uploadingNow, setUploadingNow] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState({}); // name -> 'ok' | 'error'
 
   const { data: fileRefResponse = { data: [] }, isLoading } = useQuery({
     queryKey: ['file-referensi'],
     queryFn: () => api.list('file-ref', { aktif: 'true', limit: 100 }),
   });
   const files = fileRefResponse.data || [];
-
-  const createMutation = useMutation({
-    mutationFn: (data) => api.create("file-ref", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['file-referensi'] });
-      toast.success('File referensi berhasil ditambahkan');
-      setShowDialog(false);
-      setForm({ judul: '', deskripsi: '', jenis: 'pedoman_renja' });
-      setUploadedFile(null);
-    },
-    onError: (err) => {
-      toast.error('Gagal menambahkan file referensi: ' + err.message);
-    },
-  });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => api.delete("file-ref", id),
@@ -60,31 +60,95 @@ export default function FileReferensi() {
     },
   });
 
-  const handleFileSelect = async (f) => {
-    if (f.size > 50 * 1024 * 1024) { toast.error('Ukuran file maksimal 50 MB'); return; }
-    try {
-      const result = await upload(f, 'referensi');
-      setUploadedFile({ name: result.nama_file || f.name, url: result.file_url, key: result.file_key, size: result.file_size || f.size });
-      if (!form.judul) setForm(p => ({ ...p, judul: f.name.replace(/\.[^.]+$/, '') }));
-    } catch {
-      toast.error('Gagal mengunggah file');
+  const addFiles = (fileList) => {
+    const list = Array.from(fileList || []);
+    const valid = [];
+    const skipped = [];
+    for (const f of list) {
+      if (f.size > MAX_FILE_MB * 1024 * 1024) {
+        skipped.push(`${f.name} (>${MAX_FILE_MB}MB)`);
+        continue;
+      }
+      // Hindari duplikat nama yang sudah dipilih
+      if (selectedFiles.some(s => s.name === f.name)) {
+        skipped.push(`${f.name} (sudah dipilih)`);
+        continue;
+      }
+      valid.push({ file: f, name: f.name, size: f.size });
     }
+    if (skipped.length > 0) toast.warning('Dilewati: ' + skipped.join(', '));
+    if (valid.length > 0) setSelectedFiles(prev => [...prev, ...valid]);
   };
 
-  const handleSubmit = () => {
-    if (!form.judul) { toast.error('Judul wajib diisi'); return; }
-    if (!uploadedFile) { toast.error('Pilih file terlebih dahulu'); return; }
-    createMutation.mutate({
-      ...form,
-      nama_file: uploadedFile.name,
-      file_url: uploadedFile.url,
-      file_key: uploadedFile.key || undefined,
-      diunggah_oleh: user?.full_name || user?.email || undefined,
-      aktif: true,
+  const removeFile = (name) => {
+    setSelectedFiles(prev => prev.filter(s => s.name !== name));
+    setUploadStatus(prev => {
+      const n = { ...prev };
+      delete n[name];
+      return n;
     });
   };
 
-  const formatSize = (bytes) => bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  const handleUpload = async () => {
+    if (selectedFiles.length === 0) { toast.error('Pilih minimal 1 file terlebih dahulu'); return; }
+    setUploadingNow(true);
+    setUploadStatus({});
+    const byName = {};
+    selectedFiles.forEach(s => { byName[s.name] = s.file; });
+
+    try {
+      // 1. Upload semua file ke R2 (satu request /api/upload/multiple)
+      const result = await uploadMultiple(selectedFiles.map(s => s.file), 'referensi');
+      const uploaded = result.uploaded || [];
+
+      // Tandai status per file
+      const statusMap = {};
+      uploaded.forEach(f => { statusMap[f.nama_file || f.file_key] = 'ok'; });
+      (result.errors || []).forEach(e => { statusMap[e.filename] = 'error'; });
+      setUploadStatus(statusMap);
+
+      // 2. Bulk create record file-referensi (hanya yang berhasil upload)
+      const items = uploaded.map(f => ({
+        judul: autoJudul(f.nama_file),
+        deskripsi: batchDeskripsi || undefined,
+        jenis: batchJenis,
+        nama_file: f.nama_file,
+        file_url: f.file_url,
+        file_key: f.file_key,
+        diunggah_oleh: user?.full_name || user?.email || undefined,
+        aktif: true,
+      }));
+
+      if (items.length > 0) {
+        await api.bulkCreate('file-ref', items);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['file-referensi'] });
+
+      const errCount = (result.errors || []).length;
+      if (errCount > 0) {
+        toast.warning(`${items.length} file berhasil ditambahkan, ${errCount} gagal: ${result.errors.map(e => e.filename).join(', ')}`);
+      } else {
+        toast.success(`${items.length} file referensi berhasil ditambahkan`);
+      }
+
+      if (errCount === 0) {
+        // Semua sukses -> tutup dialog & reset
+        setShowDialog(false);
+        setSelectedFiles([]);
+        setBatchDeskripsi('');
+      }
+    } catch (err) {
+      toast.error('Upload batch gagal: ' + err.message);
+      setUploadStatus(prev => {
+        const n = {};
+        selectedFiles.forEach(s => { n[s.name] = 'error'; });
+        return n;
+      });
+    } finally {
+      setUploadingNow(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -107,7 +171,8 @@ export default function FileReferensi() {
           <p className="font-semibold">Cara kerja file referensi</p>
           <p className="text-xs mt-1 text-blue-700">
             File yang diunggah di sini akan dibaca oleh sistem AI sebelum memeriksa dokumen Renja dari biro. 
-            AI akan menggunakan file ini sebagai pedoman/standar acuan untuk menilai kesesuaian dokumen.
+            AI akan menggunakan file ini sebagai pedoman/standar acuan untuk menilai kesesuaian dokumen. 
+            Bisa upload <strong>banyak file sekaligus</strong> (batch).
           </p>
         </div>
       </div>
@@ -165,20 +230,71 @@ export default function FileReferensi() {
         </div>
       )}
 
-      {/* Dialog Tambah */}
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-md">
+      {/* Dialog Tambah (Batch) */}
+      <Dialog open={showDialog} onOpenChange={(open) => {
+        if (!open && !uploadingNow) {
+          setShowDialog(false);
+          setSelectedFiles([]);
+          setBatchDeskripsi('');
+          setUploadStatus({});
+        }
+      }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Tambah File Referensi</DialogTitle>
+            <DialogTitle>Tambahkan File Referensi (Batch)</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {/* Drop zone / pilih file */}
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Judul Referensi <span className="text-destructive">*</span></label>
-              <Input value={form.judul} onChange={e => setForm(p => ({ ...p, judul: e.target.value }))} placeholder="Contoh: Permendagri No. 86 Tahun 2017" />
+              <label className="text-sm font-medium">File <span className="text-destructive">*</span>
+                <span className="text-xs text-muted-foreground"> (bisa pilih banyak sekaligus)</span>
+              </label>
+              <label className="flex items-center justify-center gap-3 p-5 rounded-xl border-2 border-dashed border-border cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors">
+                <input
+                  type="file"
+                  className="hidden"
+                  accept={ACCEPTED}
+                  multiple
+                  onChange={e => { addFiles(e.target.files); e.target.value = ''; }}
+                />
+                <Files className="w-5 h-5 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Pilih satu atau beberapa file (PDF, Word, Excel)</span>
+              </label>
+
+              {selectedFiles.length > 0 && (
+                <div className="space-y-1.5 mt-2 max-h-48 overflow-y-auto">
+                  {selectedFiles.map(s => {
+                    const st = uploadStatus[s.name];
+                    return (
+                      <div key={s.name} className="flex items-center gap-2 p-2 rounded-lg border border-border text-xs">
+                        <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <span className="flex-1 truncate">{s.name}</span>
+                        <span className="text-muted-foreground flex-shrink-0">{formatSize(s.size)}</span>
+                        {st === 'ok' && <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />}
+                        {st === 'error' && <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />}
+                        {uploadingNow && !st && <Loader2 className="w-4 h-4 animate-spin text-primary flex-shrink-0" />}
+                        {!uploadingNow && (
+                          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFile(s.name)}>
+                            <X className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {uploadingNow && (
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden mt-2">
+                  <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
+                </div>
+              )}
             </div>
+
+            {/* Jenis (berlaku untuk semua file) */}
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Jenis</label>
-              <Select value={form.jenis} onValueChange={v => setForm(p => ({ ...p, jenis: v }))}>
+              <label className="text-sm font-medium">Jenis <span className="text-xs text-muted-foreground">(berlaku untuk semua file)</span></label>
+              <Select value={batchJenis} onValueChange={setBatchJenis}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(JENIS_LABELS).map(([key, { label }]) => (
@@ -187,34 +303,23 @@ export default function FileReferensi() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Deskripsi global opsional */}
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Deskripsi <span className="text-xs text-muted-foreground">(opsional)</span></label>
-              <Textarea value={form.deskripsi} onChange={e => setForm(p => ({ ...p, deskripsi: e.target.value }))} rows={2} placeholder="Ringkasan isi referensi..." />
+              <label className="text-sm font-medium">Deskripsi <span className="text-xs text-muted-foreground">(opsional, berlaku untuk semua file)</span></label>
+              <Textarea value={batchDeskripsi} onChange={e => setBatchDeskripsi(e.target.value)} rows={2} placeholder="Contoh: Pedoman resmi yang digunakan sebagai acuan pemeriksaan" />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">File <span className="text-destructive">*</span></label>
-              {uploadedFile ? (
-                <div className="flex items-center gap-3 p-3 rounded-lg border-2 border-success/40 bg-success/5">
-                  <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
-                  <span className="text-sm flex-1 truncate">{uploadedFile.name}</span>
-                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setUploadedFile(null)}>
-                    <X className="w-3 h-3" />
-                  </Button>
-                </div>
-              ) : (
-                <label className="flex items-center gap-3 p-3 rounded-lg border-2 border-dashed border-border cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors">
-                  <input type="file" className="hidden" accept=".pdf,.doc,.docx,.xlsx,.xls" onChange={e => e.target.files[0] && handleFileSelect(e.target.files[0])} />
-                  {uploading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <Upload className="w-4 h-4 text-muted-foreground" />}
-                  <span className="text-sm text-muted-foreground">{uploading ? 'Mengunggah...' : 'Pilih file (PDF, Word, Excel)'}</span>
-                </label>
-              )}
-            </div>
+
+            <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg p-2.5 flex gap-2">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>Judul otomatis diambil dari nama file. Maksimal {MAX_FILE_MB} MB per file.</span>
+            </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>Batal</Button>
-            <Button onClick={handleSubmit} disabled={createMutation.isPending || uploading}>
-              {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Simpan
+            <Button variant="outline" onClick={() => setShowDialog(false)} disabled={uploadingNow}>Batal</Button>
+            <Button onClick={handleUpload} disabled={uploadingNow || selectedFiles.length === 0}>
+              {uploadingNow ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
+              {uploadingNow ? `Mengunggah ${selectedFiles.length} file...` : `Upload ${selectedFiles.length || ''} File`.trim()}
             </Button>
           </DialogFooter>
         </DialogContent>

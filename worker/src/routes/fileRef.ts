@@ -70,6 +70,46 @@ fileRefRoutes.post('/', async (c) => {
   return c.json({ id, ...body }, 201);
 });
 
+// POST /api/file-ref/bulk — buat banyak file referensi sekaligus (batch upload)
+fileRefRoutes.post('/bulk', async (c) => {
+  const { items } = await c.req.json();
+  if (!Array.isArray(items) || items.length === 0) {
+    return c.json({ error: 'items wajib berupa array non-kosong' }, 400);
+  }
+
+  let created = 0;
+  const failed: { judul?: string; error: string }[] = [];
+
+  for (const item of items) {
+    const id = crypto.randomUUID();
+    try {
+      await c.env.DB.prepare(
+        `INSERT INTO file_referensi (id, judul, deskripsi, jenis, nama_file, file_url, file_key, diunggah_oleh, aktif)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        id,
+        item.judul,
+        item.deskripsi ?? null,
+        item.jenis || 'pedoman_renja',
+        item.nama_file,
+        item.file_url,
+        item.file_key ?? null,
+        item.diunggah_oleh ?? null,
+        item.aktif !== false ? 1 : 0
+      ).run();
+      created++;
+    } catch (error: any) {
+      failed.push({ judul: item.judul || item.nama_file, error: error.message });
+    }
+  }
+
+  return c.json({
+    message: `${created} file referensi ditambahkan${failed.length ? `, ${failed.length} gagal` : ''}`,
+    created,
+    failed: failed.length > 0 ? failed : undefined,
+  }, created > 0 ? 201 : 500);
+});
+
 // PUT /api/file-ref/:id — update file referensi
 fileRefRoutes.put('/:id', async (c) => {
   const id = c.req.param('id');
