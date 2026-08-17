@@ -1,0 +1,23 @@
+{
+  "name": "si-verena-setda",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Sistem Verifikasi Renja Sekretariat Daerah",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:worker\" \"npm run dev:frontend\"",
+    "dev:worker": "cd worker && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "deploy": "cd worker && npm run deploy",
+    "deploy:frontend": "cd frontend && npm run build && wrangler pages deploy dist --project-name=si-verena",
+    "db:migrate": "cd worker && npm run db:migrate",
+    "db:seed": "cd worker && npm run db:seed",
+    "install:all": "npm install && cd worker && npm install && cd ../frontend && npm install"
+  },
+  "keywords": ["cloudflare", "workers", "d1", "r2", "ai", "hono", "react"],
+  "author": "SETDA Sumbar",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}

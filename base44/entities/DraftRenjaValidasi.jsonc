@@ -1,0 +1,35 @@
+{
+  "name": "DraftRenjaValidasi",
+  "type": "object",
+  "properties": {
+    "draft_id": {
+      "type": "string"
+    },
+    "komponen": {
+      "type": "string"
+    },
+    "sumber_data": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "lengkap",
+        "belum_lengkap",
+        "tidak_ditemukan",
+        "perlu_review"
+      ],
+      "default": "tidak_ditemukan"
+    },
+    "catatan_sistem": {
+      "type": "string"
+    },
+    "aksi_perbaikan": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "draft_id",
+    "komponen"
+  ]
+}

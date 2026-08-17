@@ -1,0 +1,24 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "biro_pengusul",
+        "verifikator",
+        "pimpinan"
+      ],
+      "default": "biro_pengusul"
+    },
+    "biro_id": {
+      "type": "string",
+      "description": "ID biro yang ditugaskan (untuk role biro_pengusul)"
+    },
+    "nama_biro": {
+      "type": "string",
+      "description": "Nama biro yang ditugaskan"
+    }
+  }
+}

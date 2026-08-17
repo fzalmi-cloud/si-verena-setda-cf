@@ -1,0 +1,88 @@
+{
+  "name": "HasilPemeriksaan",
+  "type": "object",
+  "properties": {
+    "dokumen_renja_id": {
+      "type": "string",
+      "description": "ID dokumen renja yang diperiksa"
+    },
+    "biro_id": {
+      "type": "string"
+    },
+    "nama_biro": {
+      "type": "string"
+    },
+    "periode_tahun": {
+      "type": "number"
+    },
+    "kategori": {
+      "type": "string",
+      "enum": [
+        "kelengkapan_dokumen",
+        "sistematika_dokumen",
+        "tabel_wajib",
+        "matriks_renja",
+        "urgensi_prioritas",
+        "konsistensi_angka",
+        "substansi_bab"
+      ],
+      "description": "Kategori pemeriksaan"
+    },
+    "sub_kategori": {
+      "type": "string",
+      "description": "Sub kategori pemeriksaan"
+    },
+    "item_pemeriksaan": {
+      "type": "string",
+      "description": "Item yang diperiksa"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "sesuai",
+        "perlu_perbaikan",
+        "tidak_ditemukan",
+        "perlu_review_manual",
+        "tidak_berlaku"
+      ],
+      "default": "perlu_review_manual"
+    },
+    "halaman": {
+      "type": "string",
+      "description": "Nomor halaman/lokasi pada dokumen Renja yang perlu diperbaiki (mis. '12', '8-9', 'BAB III hal. 5'). Kosong jika tidak ditemukan."
+    },
+    "kutipan_dokumen": {
+      "type": "string",
+      "description": "Kutipan teks/judul/angka persis dari dokumen Renja yang menunjukkan titik perbaikan."
+    },
+    "catatan_otomatis": {
+      "type": "string",
+      "description": "Catatan otomatis dari sistem (detail temuan, bukti, rekomendasi)"
+    },
+    "catatan_verifikator": {
+      "type": "string",
+      "description": "Catatan dari verifikator"
+    },
+    "status_validasi": {
+      "type": "string",
+      "enum": [
+        "belum_divalidasi",
+        "divalidasi",
+        "ditolak"
+      ],
+      "default": "belum_divalidasi"
+    },
+    "divalidasi_oleh": {
+      "type": "string"
+    },
+    "tanggal_validasi": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "nama_biro",
+    "kategori",
+    "item_pemeriksaan"
+  ]
+}

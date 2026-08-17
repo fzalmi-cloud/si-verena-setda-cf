@@ -1,0 +1,72 @@
+{
+  "name": "SkorDokumen",
+  "type": "object",
+  "properties": {
+    "biro_id": {
+      "type": "string"
+    },
+    "nama_biro": {
+      "type": "string"
+    },
+    "periode_tahun": {
+      "type": "number"
+    },
+    "skor_kelengkapan": {
+      "type": "number",
+      "description": "Skor kelengkapan dokumen pendukung (0-100)"
+    },
+    "skor_sistematika": {
+      "type": "number",
+      "description": "Skor kesesuaian sistematika (0-100)"
+    },
+    "skor_tabel": {
+      "type": "number",
+      "description": "Skor kelengkapan tabel (0-100)"
+    },
+    "skor_matriks": {
+      "type": "number",
+      "description": "Skor kelengkapan matriks (0-100)"
+    },
+    "skor_konsistensi": {
+      "type": "number",
+      "description": "Skor konsistensi angka/narasi (0-100)"
+    },
+    "skor_substansi": {
+      "type": "number",
+      "description": "Skor substansi per bab (0-100)"
+    },
+    "skor_total": {
+      "type": "number",
+      "description": "Skor total kesiapan (0-100)"
+    },
+    "level_kesiapan": {
+      "type": "string",
+      "enum": [
+        "sangat_siap",
+        "siap_perbaikan_kecil",
+        "perlu_perbaikan_sedang",
+        "belum_layak"
+      ],
+      "description": "Level kesiapan dokumen"
+    },
+    "status_final": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "sedang_diperiksa",
+        "perlu_revisi",
+        "layak_kirim",
+        "sudah_dikirim"
+      ],
+      "default": "draft"
+    },
+    "tanggal_pemeriksaan": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "nama_biro",
+    "periode_tahun"
+  ]
+}

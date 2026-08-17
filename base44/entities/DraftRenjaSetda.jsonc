@@ -1,0 +1,61 @@
+{
+  "name": "DraftRenjaSetda",
+  "type": "object",
+  "properties": {
+    "tahun": {
+      "type": "number",
+      "description": "Tahun Renja"
+    },
+    "versi": {
+      "type": "number",
+      "default": 1
+    },
+    "judul": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft_otomatis",
+        "direview",
+        "perlu_perbaikan",
+        "disetujui",
+        "final"
+      ],
+      "default": "draft_otomatis"
+    },
+    "generated_by": {
+      "type": "string"
+    },
+    "validated_by": {
+      "type": "string"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "validated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "catatan_umum": {
+      "type": "string"
+    },
+    "jumlah_biro": {
+      "type": "number"
+    },
+    "biro_digunakan": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ringkasan_eksekutif": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "tahun",
+    "judul"
+  ]
+}

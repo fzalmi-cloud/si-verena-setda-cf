@@ -1,0 +1,10 @@
+# Salin file ini menjadi .dev.vars untuk development lokal (wrangler dev).
+# JANGAN commit .dev.vars ke git (sudah ada di .gitignore).
+#
+# Untuk production, set lewat perintah:
+#   wrangler secret put JWT_SECRET
+# (generate secret: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
+
+JWT_SECRET=ganti-dengan-random-64-hex-characters
+FRONTEND_URL=http://localhost:5173
+DEEPSEEK_API_KEY=

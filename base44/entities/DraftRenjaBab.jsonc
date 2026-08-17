@@ -1,0 +1,47 @@
+{
+  "name": "DraftRenjaBab",
+  "type": "object",
+  "properties": {
+    "draft_id": {
+      "type": "string"
+    },
+    "nomor_bab": {
+      "type": "string",
+      "description": "Contoh: 1, 1.1, 2, 2.1"
+    },
+    "judul_bab": {
+      "type": "string"
+    },
+    "isi_bab": {
+      "type": "string"
+    },
+    "status_bab": {
+      "type": "string",
+      "enum": [
+        "draft_otomatis",
+        "direview",
+        "perlu_perbaikan",
+        "disetujui",
+        "final"
+      ],
+      "default": "draft_otomatis"
+    },
+    "catatan_verifikator": {
+      "type": "string"
+    },
+    "sumber_data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "urutan": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "draft_id",
+    "nomor_bab",
+    "judul_bab"
+  ]
+}

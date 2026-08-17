@@ -1,0 +1,30 @@
+{
+  "name": "PeriodeRenja",
+  "type": "object",
+  "properties": {
+    "tahun": {
+      "type": "number",
+      "description": "Tahun periode Renja"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "aktif",
+        "selesai",
+        "arsip"
+      ],
+      "default": "aktif"
+    },
+    "tanggal_mulai": {
+      "type": "string",
+      "format": "date"
+    },
+    "tanggal_selesai": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "tahun"
+  ]
+}

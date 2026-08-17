@@ -1,0 +1,35 @@
+{
+  "name": "RiwayatRevisi",
+  "type": "object",
+  "properties": {
+    "biro_id": {
+      "type": "string"
+    },
+    "nama_biro": {
+      "type": "string"
+    },
+    "periode_tahun": {
+      "type": "number"
+    },
+    "versi": {
+      "type": "number"
+    },
+    "jenis_dokumen": {
+      "type": "string"
+    },
+    "file_url": {
+      "type": "string"
+    },
+    "catatan_revisi": {
+      "type": "string"
+    },
+    "diunggah_oleh": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "nama_biro",
+    "periode_tahun",
+    "versi"
+  ]
+}

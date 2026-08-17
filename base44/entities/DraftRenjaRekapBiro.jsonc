@@ -1,0 +1,55 @@
+{
+  "name": "DraftRenjaRekapBiro",
+  "type": "object",
+  "properties": {
+    "draft_id": {
+      "type": "string"
+    },
+    "biro_id": {
+      "type": "string"
+    },
+    "nama_biro": {
+      "type": "string"
+    },
+    "jumlah_program": {
+      "type": "number",
+      "default": 0
+    },
+    "jumlah_kegiatan": {
+      "type": "number",
+      "default": 0
+    },
+    "jumlah_subkegiatan": {
+      "type": "number",
+      "default": 0
+    },
+    "total_pagu": {
+      "type": "number",
+      "default": 0
+    },
+    "jumlah_catatan": {
+      "type": "number",
+      "default": 0
+    },
+    "status_kesiapan": {
+      "type": "string",
+      "enum": [
+        "siap",
+        "perlu_review",
+        "belum_lengkap",
+        "tidak_ada_dokumen"
+      ],
+      "default": "tidak_ada_dokumen"
+    },
+    "dokumen_id": {
+      "type": "string"
+    },
+    "skor_kesiapan": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "draft_id",
+    "nama_biro"
+  ]
+}

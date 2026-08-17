@@ -1,0 +1,120 @@
+{
+  "name": "DokumenRenja",
+  "type": "object",
+  "properties": {
+    "biro_id": {
+      "type": "string",
+      "description": "ID biro/unit"
+    },
+    "nama_biro": {
+      "type": "string",
+      "description": "Nama biro/unit (9 biro atau Sekretariat Daerah / SETDA)"
+    },
+    "periode_tahun": {
+      "type": "number",
+      "description": "Tahun Renja"
+    },
+    "level_unit": {
+      "type": "string",
+      "enum": [
+        "biro",
+        "setda"
+      ],
+      "default": "biro",
+      "description": "Level unit pemilik dokumen"
+    },
+    "unit_id": {
+      "type": "string",
+      "description": "ID unit (biro atau setda)"
+    },
+    "jenis_dokumen": {
+      "type": "string",
+      "enum": [
+        "narasi_renja",
+        "renja_biro",
+        "draft_renja_setda",
+        "revisi_renja",
+        "matriks_renja",
+        "checklist_verifikasi",
+        "dokumen_pendukung",
+        "hasil_verifikasi",
+        "lampiran"
+      ],
+      "description": "Jenis dokumen yang diunggah"
+    },
+    "sub_jenis": {
+      "type": "string",
+      "enum": [
+        "dokumen_narasi_word_pdf",
+        "matriks_excel",
+        "sk_tim_penyusun",
+        "bukti_orientasi",
+        "undangan_forum",
+        "berita_acara_forum",
+        "notulen_rapat",
+        "dokumentasi_kegiatan",
+        "hasil_input_sipd",
+        "tabel_tc29",
+        "tabel_tc30",
+        "tabel_tc31",
+        "tabel_tc32",
+        "tabel_tc33",
+        "checklist_bappeda",
+        "lainnya"
+      ]
+    },
+    "nama_file": {
+      "type": "string"
+    },
+    "file_url": {
+      "type": "string",
+      "description": "URL file yang diunggah"
+    },
+    "status_upload": {
+      "type": "string",
+      "enum": [
+        "diunggah",
+        "sedang_diproses",
+        "selesai_diproses",
+        "gagal"
+      ],
+      "default": "diunggah"
+    },
+    "status_dokumen": {
+      "type": "string",
+      "enum": [
+        "diunggah",
+        "dokumen_biro",
+        "dokumen_setda",
+        "draft_manual",
+        "draft_revisi",
+        "final_internal",
+        "perlu_perbaikan",
+        "sudah_divalidasi"
+      ],
+      "default": "diunggah",
+      "description": "Penanda visual/kategorisasi dokumen"
+    },
+    "sumber_dokumen": {
+      "type": "string",
+      "description": "Sumber/asal dokumen"
+    },
+    "parent_document_id": {
+      "type": "string",
+      "description": "ID dokumen induk jika merupakan revisi/turunan"
+    },
+    "versi": {
+      "type": "number",
+      "default": 1,
+      "description": "Versi dokumen (untuk tracking revisi)"
+    },
+    "catatan_upload": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "nama_biro",
+    "periode_tahun",
+    "jenis_dokumen"
+  ]
+}

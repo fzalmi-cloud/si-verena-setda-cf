@@ -1,0 +1,29 @@
+{
+  "name": "Biro",
+  "type": "object",
+  "properties": {
+    "nama_biro": {
+      "type": "string",
+      "description": "Nama biro/perangkat daerah"
+    },
+    "kode_biro": {
+      "type": "string",
+      "description": "Kode biro"
+    },
+    "kepala_biro": {
+      "type": "string",
+      "description": "Nama kepala biro"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "aktif",
+        "nonaktif"
+      ],
+      "default": "aktif"
+    }
+  },
+  "required": [
+    "nama_biro"
+  ]
+}

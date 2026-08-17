@@ -1,0 +1,30 @@
+name = "si-verena-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "si-verena-db"
+database_id = "4fce1aee-fddd-46c5-96b7-a1acdec50c83"
+
+# R2 Storage
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "si-verena-files"
+
+# Workers AI (GRATIS!)
+[ai]
+binding = "AI"
+
+# Environment Variables
+# PENTING: JWT_SECRET TIDAK BOLEH di sini (bocor ke repo & bisa dipalsukan).
+# Set via: wrangler secret put JWT_SECRET
+[vars]
+FRONTEND_URL = "https://si-verena-setda.pages.dev"
+
+# Development
+[dev]
+port = 8787
+local_protocol = "http"

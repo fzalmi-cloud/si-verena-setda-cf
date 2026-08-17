@@ -1,0 +1,43 @@
+{
+  "name": "FileReferensi",
+  "type": "object",
+  "properties": {
+    "judul": {
+      "type": "string",
+      "description": "Judul/nama file referensi"
+    },
+    "deskripsi": {
+      "type": "string",
+      "description": "Deskripsi singkat isi referensi"
+    },
+    "jenis": {
+      "type": "string",
+      "enum": [
+        "pedoman_renja",
+        "peraturan",
+        "checklist_bappeda",
+        "contoh_dokumen",
+        "lainnya"
+      ],
+      "default": "pedoman_renja"
+    },
+    "nama_file": {
+      "type": "string"
+    },
+    "file_url": {
+      "type": "string",
+      "description": "URL file referensi"
+    },
+    "diunggah_oleh": {
+      "type": "string"
+    },
+    "aktif": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "judul",
+    "file_url"
+  ]
+}

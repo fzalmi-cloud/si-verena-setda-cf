@@ -1,0 +1,24 @@
+{
+  "name": "si-verena-api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply si-verena-db",
+    "db:seed": "wrangler d1 execute si-verena-db --file=./src/db/seed.sql",
+    "db:studio": "wrangler d1 execute si-verena-db --command 'SELECT 1'"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "hono": "^4.6.0",
+    "jsonwebtoken": "^9.0.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241218.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "typescript": "^5.7.0",
+    "wrangler": "^3.114.17"
+  }
+}
