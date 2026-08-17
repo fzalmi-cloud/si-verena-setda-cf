@@ -39,6 +39,8 @@ export default function HasilPemeriksaanTab({ tahun, refreshKey, role, biroSaya,
   const [periksaStep, setPeriksaStep] = useState('');
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnNote, setReturnNote] = useState('');
+  const [sendEmail, setSendEmail] = useState(true);
+  const [mailStatus, setMailStatus] = useState(null);
   const [finalOpen, setFinalOpen] = useState(false);
   const [finalNote, setFinalNote] = useState('');
   const [compareData, setCompareData] = useState(null);
@@ -57,6 +59,10 @@ export default function HasilPemeriksaanTab({ tahun, refreshKey, role, biroSaya,
   }, [initialVersion]);
   // Sinkronkan tahun dengan header halaman
   useEffect(() => { setTahunState(tahun); }, [tahun]);
+
+  useEffect(() => {
+    api.request('/api/perubahan/mail-status', { method: 'GET' }).then(setMailStatus).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!selectedBiro) { setVersions([]); setFindings([]); setSubmission(null); setSelectedVersion(''); return; }
@@ -137,8 +143,12 @@ export default function HasilPemeriksaanTab({ tahun, refreshKey, role, biroSaya,
     if (!submission) return;
     setBusy(true);
     try {
-      await api.request(`/api/perubahan/submissions/${submission.id}/return`, { method: 'POST', body: JSON.stringify({ note: returnNote }) });
-      toast.success('Dokumen dikembalikan untuk perbaikan');
+      const resp = await api.request(`/api/perubahan/submissions/${submission.id}/return`, { method: 'POST', body: JSON.stringify({ note: returnNote, send_email: sendEmail }) });
+      toast.success(resp.message || 'Dokumen dikembalikan untuk perbaikan');
+      if (resp?.email && resp.email !== 'tidak diminta') {
+        if (resp.email === 'terkirim') toast.success('Email notifikasi terkirim ke Biro');
+        else toast.warning('Email: ' + resp.email);
+      }
       setReturnOpen(false); setReturnNote('');
       const sr = await api.list('perubahan/submissions', { year: parseInt(tahunState), nama_biro: selectedBiro });
       setSubmission((Array.isArray(sr?.data) ? sr.data : [])[0] || null);
@@ -347,9 +357,19 @@ export default function HasilPemeriksaanTab({ tahun, refreshKey, role, biroSaya,
             <AlertDialogDescription>Catatan pengembalian wajib diisi agar Biro mengetahui perbaikannya.</AlertDialogDescription>
           </AlertDialogHeader>
           <Input className="mb-2" placeholder="Catatan pengembalian *" value={returnNote} onChange={e => setReturnNote(e.target.value)} />
+          <label className="flex items-center gap-2 p-2 rounded-lg border border-border text-xs cursor-pointer">
+            <input type="checkbox" checked={sendEmail} onChange={e => setSendEmail(e.target.checked)} className="rounded" />
+            <span>Kirim notifikasi email ke Biro</span>
+            <span className="text-muted-foreground">({mailStatus?.configured ? 'email aktif' : 'email belum dikonfigurasi — kirim ke menu settings'})</span>
+          </label>
+          {!mailStatus?.configured && (
+            <p className="text-[10px] text-muted-foreground">Konfigurasi: wrangler secret put MAIL_API_KEY / MAIL_FROM / MAIL_ENABLED=true (provider Resend atau generic).</p>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
-            <AlertDialogAction className="bg-orange-600 hover:bg-orange-700" onClick={handleReturn} disabled={busy || !returnNote.trim()}>{busy ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Kembalikan</AlertDialogAction>
+            <AlertDialogAction className="bg-orange-600 hover:bg-orange-700" onClick={handleReturn} disabled={busy || !returnNote.trim()}>
+              {busy ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Kembalikan{sendEmail && mailStatus?.configured ? ' + Email' : ''}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

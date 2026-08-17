@@ -263,9 +263,10 @@ perubahanRoutes.put('/submissions/:id', async (c) => {
 });
 
 // Kembalikan untuk perbaikan (verifikator, wajib catatan)
+// Opsi send_email: kirim notifikasi email ke pengguna Biro terkait.
 perubahanRoutes.post('/submissions/:id/return', async (c) => {
   const id = c.req.param('id');
-  const { note } = await c.req.json();
+  const { note, send_email } = await c.req.json();
   if (!note || !note.trim()) return c.json({ error: 'Catatan pengembalian wajib diisi' }, 400);
   const payload = (c as any).get('jwtPayload') as any;
   const sub: any = await c.env.DB.prepare('SELECT * FROM renja_perubahan_submissions WHERE id = ?').bind(id).first();
@@ -275,7 +276,55 @@ perubahanRoutes.post('/submissions/:id/return', async (c) => {
   ).bind(note, payload?.email, id).run();
   await logAudit(c, 'return', 'rp_submission', id, `Kembalikan untuk perbaikan: ${note}`);
   await createNotification(c.env, 'biro', sub.nama_biro, 'returned', `Dokumen ${sub.nama_biro} dikembalikan: ${note}`);
-  return c.json({ message: 'Dokumen dikembalikan untuk perbaikan' });
+
+  // Notifikasi email (opsional, bila diminta & email terkonfigurasi)
+  let mail = null;
+  if (send_email) {
+    const { sendMail } = await import('../mail');
+    const { results: biroUsers } = await c.env.DB.prepare(
+      'SELECT id, email, full_name FROM users WHERE nama_biro = ? AND is_active = 1'
+    ).bind(sub.nama_biro).all();
+    const emails = (biroUsers as any[]).map(u => u.email).filter(Boolean);
+    const verifName = payload?.email || 'Verifikator';
+    if (emails.length > 0) {
+      mail = await sendMail(c.env, {
+        to: emails,
+        subject: `[SI-VERENA] Dokumen Renja Perubahan ${sub.nama_biro} dikembalikan untuk perbaikan`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px">
+            <h2 style="color:#c2410c">Dokumen Dikembalikan untuk Perbaikan</h2>
+            <p>Dokumen <strong>Renja Perubahan ${sub.nama_biro} Tahun ${sub.year}</strong> (V${sub.current_version}) dikembalikan oleh Verifikator <strong>${verifName}</strong>.</p>
+            <p><strong>Catatan Verifikator:</strong></p>
+            <blockquote style="border-left:4px solid #f97316;padding:8px 12px;background:#fff7ed;color:#7c2d12">${note.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</blockquote>
+            <p>Silakan perbaiki dokumen sesuai catatan, lalu unggah <strong>versi baru (V${(sub.current_version || 0) + 1})</strong> pada aplikasi SI-VERENA di <strong>https://siverena.id/perubahan</strong> (tab Upload Renja Perubahan Biro).</p>
+            <p style="color:#6b7280;font-size:12px">Ini adalah email otomatis dari sistem SI-VERENA SETDA.</p>
+          </div>`,
+      });
+      await logAudit(c, 'email_sent', 'rp_submission', id, `Email pengembalian dikirim ke ${emails.join(', ')} — ${mail.ok ? 'OK' : 'GAGAL: ' + (mail.error || '')}`);
+    } else {
+      await logAudit(c, 'email_sent', 'rp_submission', id, 'Email pengembalian tidak dikirim — tidak ada user biro dengan email');
+    }
+  }
+
+  return c.json({
+    message: 'Dokumen dikembalikan untuk perbaikan',
+    email: mail ? (mail.ok ? 'terkirim' : `gagal: ${mail.error}`) : (send_email ? 'tidak dikirim (tidak ada penerima)' : 'tidak diminta'),
+  });
+});
+
+// GET /api/perubahan/mail-status — status konfigurasi email (tanpa membocorkan key)
+perubahanRoutes.get('/mail-status', async (c) => {
+  const { getMailConfig } = await import('../mail');
+  const cfg = getMailConfig(c.env);
+  return c.json({
+    enabled: cfg.enabled,
+    provider: cfg.provider,
+    from: cfg.from || null,
+    configured: cfg.enabled && !!cfg.apiKey && !!cfg.from,
+    hint: cfg.enabled && cfg.apiKey && cfg.from
+      ? 'Email aktif.'
+      : 'Email belum dikonfigurasi. Jalankan: wrangler secret put MAIL_API_KEY, MAIL_FROM, MAIL_ENABLED=true',
+  });
 });
 
 // Tetapkan Final (blokir jika masih ada temuan kritis terbuka)

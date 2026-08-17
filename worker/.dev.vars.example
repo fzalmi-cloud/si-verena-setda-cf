@@ -1,10 +1,18 @@
-# Salin file ini menjadi .dev.vars untuk development lokal (wrangler dev).
-# JANGAN commit .dev.vars ke git (sudah ada di .gitignore).
-#
-# Untuk production, set lewat perintah:
-#   wrangler secret put JWT_SECRET
-# (generate secret: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
-
-JWT_SECRET=ganti-dengan-random-64-hex-characters
+# Salin ke .dev.vars untuk development lokal — JANGAN commit .dev.vars
+# ============================================================
+JWT_SECRET=ganti-dengan-random-64-hex
 FRONTEND_URL=http://localhost:5173
 DEEPSEEK_API_KEY=
+LLM_PROVIDER=workers
+
+# ── Notifikasi Email (modul Renja Perubahan) ─────────────────
+# Aktifkan dengan: wrangler secret put MAIL_ENABLED=true
+#                   wrangler secret put MAIL_PROVIDER=resend   (resend | generic)
+#                   wrangler secret put MAIL_API_KEY=<key>
+#                   wrangler secret put MAIL_FROM=SI-VERENA <no-reply@domain>
+# (generic):        wrangler secret put MAIL_API_URL=https://api.sendgrid.com/v3/mail/send
+MAIL_ENABLED=false
+MAIL_PROVIDER=resend
+MAIL_API_KEY=
+MAIL_FROM=
+MAIL_API_URL=
