@@ -154,7 +154,17 @@ export default function RenjaPerubahan() {
           </div>
         </div>
         <div className="mt-4 flex items-center gap-3 flex-wrap text-xs">
-          <Badge variant="outline" className="bg-card">Tahun {tahun}</Badge>
+          <div className="space-y-0.5">
+            <p className="text-[9px] text-muted-foreground uppercase tracking-wide">Tahun Perencanaan</p>
+            <Select value={tahun} onValueChange={setTahun}>
+              <SelectTrigger className="h-8 w-28 bg-card text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(periodeList.length > 0 ? periodeList : [2028, 2027, 2026, 2025].map(y => ({ tahun: y }))).map(p => (
+                  <SelectItem key={p.tahun} value={String(p.tahun)}>{p.tahun}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Badge variant="outline" className="bg-card">Tahap: {TAHAP_LABELS[periode?.status === 'aktif' ? 'rancangan_perubahan' : 'rancangan_perubahan']}</Badge>
           <Badge variant="outline" className={`bg-card ${periode?.status === 'aktif' ? 'text-emerald-600' : 'text-muted-foreground'}`}>
             Status Periode: {periode?.status === 'aktif' ? 'Aktif' : periode?.status || 'Belum diset'}

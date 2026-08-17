@@ -14,6 +14,8 @@ import TahunSelect from '@/components/TahunSelect';
 
 export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif }) {
   const [tahunState, setTahunState] = useState(tahun);
+  // Sinkronkan tahun dengan header halaman
+  useEffect(() => { setTahunState(tahun); }, [tahun]);
   const [mode, setMode] = useState('draft');
   const [submissions, setSubmissions] = useState([]);
   const [setdaList, setSetdaList] = useState([]);
