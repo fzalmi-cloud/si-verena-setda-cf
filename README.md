@@ -208,3 +208,24 @@ hanya berisi: `login`, `register`, `me`, `verify-token`.
 
 - `6f32b8f` — fix upload referensi (file-ref 500), login bcrypt, JWT_SECRET, otorisasi `/api/user`, register tanpa role dari client.
 - `4e9eabf` — hapus seed data mock, fix bcrypt hash seed admin, fix DELETE R2 (key salah), handle 401 pada upload, onError toast file referensi.
+
+## Deploy Status (2026-08-17)
+
+- **Worker (API)**: `si-verena-api` — versi ter-fix SUDAH LIVE di production
+  (semua perbaikan #1-#9 berlaku; JWT_SECRET sudah diset via `wrangler secret put`).
+- **Frontend fix**: live di **https://si-verena-setda-fix.pages.dev** (Pages project baru,
+  direct upload — project asli `si-verena-setda.pages.dev` masih terikat git ke
+  `fzalmi/si-verena-setda` yang hanya bisa di-update oleh pemilik repo).
+- Untuk menjadikan frontend fix sebagai situs utama: push kode ke `fzalmi/si-verena-setda`
+  (oleh pemilik repo) agar Pages asli auto-rebuild, ATAU pindahkan domain/custom domain
+  ke project `si-verena-setda-fix`.
+
+### Deploy ulang frontend (setelah perubahan baru)
+```bash
+cd frontend
+VITE_API_URL="https://si-verena-api.si-verena-setda.workers.dev" npm run build
+cd ..
+CLOUDFLARE_API_TOKEN=<token> CLOUDFLARE_ACCOUNT_ID=<account> node deploy-pages.mjs si-verena-setda-fix frontend/dist
+# atau pakai wrangler:
+cd frontend && npx wrangler pages deploy dist --project-name si-verena-setda-fix
+```
