@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import TahunSelect from '@/components/TahunSelect';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RefreshCw, Settings, HelpCircle, History, GitBranch, Bell, CheckCircle2 } from 'lucide-react';
+import { RefreshCw, Settings, HelpCircle, History, GitBranch, Bell, CheckCircle2, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import DashboardTab from '@/pages/perubahanTabs/DashboardTab';
