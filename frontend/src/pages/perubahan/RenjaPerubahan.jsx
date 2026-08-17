@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { api } from '@/api/client';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import TahunSelect from '@/components/TahunSelect';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -29,10 +30,14 @@ export default function RenjaPerubahan() {
   const [urlBiro, setUrlBiro] = useState(params.get('biro') || '');
   const [urlVersi, setUrlVersi] = useState(params.get('versi') || '');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [periodeList, setPeriodeList] = useState([]);
   const [periode, setPeriode] = useState(null);
   const [progress, setProgress] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
+  const [showPeriode, setShowPeriode] = useState(false);
+  const [periodeForm, setPeriodeForm] = useState({ status: 'aktif', tanggal_mulai: '', tanggal_selesai: '' });
+  const [periodeBusy, setPeriodeBusy] = useState(false);
   const [auditList, setAuditList] = useState([]);
   const [showNotif, setShowNotif] = useState(false);
   const [notifList, setNotifList] = useState([]);
@@ -44,10 +49,51 @@ export default function RenjaPerubahan() {
   useEffect(() => {
     api.list('periode', { limit: 100 }).then(resp => {
       const list = Array.isArray(resp?.data) ? resp.data : [];
-      const aktif = list.find(p => p.status === 'aktif' && String(p.tahun) === String(tahun)) || list.find(p => p.status === 'aktif');
-      if (aktif) setPeriode(aktif);
+      setPeriodeList(list);
+      const utkTahun = list.find(p => String(p.tahun) === String(tahun));
+      if (utkTahun) setPeriode(utkTahun);
+      else setPeriode(list.find(p => p.status === 'aktif') || null);
     }).catch(() => {});
   }, [tahun]);
+
+  // Buka dialog pengaturan periode (edit tanggal mulai/batas/status utk tahun terpilih)
+  const openPeriode = () => {
+    const target = periodeList.find(p => String(p.tahun) === String(tahun)) || null;
+    setPeriodeForm({
+      status: target?.status || 'aktif',
+      tanggal_mulai: target?.tanggal_mulai ? String(target.tanggal_mulai).slice(0, 10) : '',
+      tanggal_selesai: target?.tanggal_selesai ? String(target.tanggal_selesai).slice(0, 10) : '',
+    });
+    setShowPeriode(true);
+  };
+
+  const savePeriode = async () => {
+    setPeriodeBusy(true);
+    try {
+      const payload = {
+        status: periodeForm.status,
+        tanggal_mulai: periodeForm.tanggal_mulai || undefined,
+        tanggal_selesai: periodeForm.tanggal_selesai || undefined,
+      };
+      const target = periodeList.find(p => String(p.tahun) === String(tahun));
+      if (target) {
+        await api.update('periode', target.id, payload);
+      } else {
+        await api.create('periode', { tahun: parseInt(tahun), ...payload });
+      }
+      toast.success('Periode diperbarui');
+      setShowPeriode(false);
+      const resp = await api.list('periode', { limit: 100 });
+      const list = Array.isArray(resp?.data) ? resp.data : [];
+      setPeriodeList(list);
+      setPeriode(list.find(p => String(p.tahun) === String(tahun)) || list.find(p => p.status === 'aktif') || null);
+      refreshAll();
+    } catch (err) {
+      toast.error('Gagal: ' + err.message);
+    } finally {
+      setPeriodeBusy(false);
+    }
+  };
 
   const refreshAll = () => setRefreshKey(k => k + 1);
 
@@ -97,7 +143,7 @@ export default function RenjaPerubahan() {
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={refreshAll}><RefreshCw className="w-3.5 h-3.5 mr-1" /> Refresh</Button>
             {isAdminLike && (
-              <Button variant="outline" size="sm" onClick={() => toast.info('Periode diatur pada menu Periode Renja. Status aktif: ' + (periode?.status || '-'))}>
+              <Button variant="outline" size="sm" onClick={openPeriode}>
                 <Settings className="w-3.5 h-3.5 mr-1" /> Pengaturan Periode
               </Button>
             )}
@@ -147,6 +193,41 @@ export default function RenjaPerubahan() {
           <SetdaTab tahun={tahun} refreshKey={refreshKey} role={role} isAdminLike={isAdminLike} isVerif={isVerif} />
         </TabsContent>
       </Tabs>
+
+      {/* Dialog Pengaturan Periode */}
+      <Dialog open={showPeriode} onOpenChange={setShowPeriode}>
+        <DialogContent className="max-w-sm" aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Pengaturan Periode — {tahun}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Status Periode</label>
+              <Select value={periodeForm.status} onValueChange={v => setPeriodeForm(p => ({ ...p, status: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="aktif">Aktif</SelectItem>
+                  <SelectItem value="terkunci">Terkunci (blokir upload)</SelectItem>
+                  <SelectItem value="selesai">Selesai</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Tanggal Mulai</label>
+              <Input type="date" value={periodeForm.tanggal_mulai} onChange={e => setPeriodeForm(p => ({ ...p, tanggal_mulai: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Batas Waktu</label>
+              <Input type="date" value={periodeForm.tanggal_selesai} onChange={e => setPeriodeForm(p => ({ ...p, tanggal_selesai: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPeriode(false)} disabled={periodeBusy}>Batal</Button>
+            <Button onClick={savePeriode} disabled={periodeBusy}>
+              {periodeBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Simpan Periode
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog Bantuan */}
       <Dialog open={showHelp} onOpenChange={setShowHelp}>
