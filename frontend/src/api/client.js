@@ -126,6 +126,12 @@ class ApiClient {
       body: formData,
     });
 
+    if (response.status === 401) {
+      this.setToken(null);
+      window.location.href = '/login';
+      throw new Error('Sesi berakhir. Silakan login kembali.');
+    }
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Upload failed' }));
       throw new Error(error.error || 'Upload failed');
@@ -152,6 +158,12 @@ class ApiClient {
       headers,
       body: formData,
     });
+
+    if (response.status === 401) {
+      this.setToken(null);
+      window.location.href = '/login';
+      throw new Error('Sesi berakhir. Silakan login kembali.');
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Upload failed' }));

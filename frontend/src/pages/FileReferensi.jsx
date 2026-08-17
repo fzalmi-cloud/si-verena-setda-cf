@@ -46,6 +46,9 @@ export default function FileReferensi() {
       setForm({ judul: '', deskripsi: '', jenis: 'pedoman_renja' });
       setUploadedFile(null);
     },
+    onError: (err) => {
+      toast.error('Gagal menambahkan file referensi: ' + err.message);
+    },
   });
 
   const deleteMutation = useMutation({

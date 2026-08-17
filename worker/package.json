@@ -7,6 +7,8 @@
     "deploy": "wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply si-verena-db",
     "db:seed": "wrangler d1 execute si-verena-db --file=./src/db/seed.sql",
+    "db:seed:data": "wrangler d1 execute si-verena-db --file=./src/db/seed_data.sql",
+    "db:cleanup": "wrangler d1 execute si-verena-db --file=./src/db/cleanup_demo_data.sql",
     "db:studio": "wrangler d1 execute si-verena-db --command 'SELECT 1'"
   },
   "dependencies": {

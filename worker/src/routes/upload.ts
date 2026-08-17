@@ -49,7 +49,8 @@ uploadRoutes.post('/', async (c) => {
 
 // DELETE /api/upload/files/:key — delete file dari R2
 uploadRoutes.delete('/files/*', async (c) => {
-  const key = c.req.path.replace('/api/files/', '');
+  // Route ini ter-mount di /api/upload, jadi path lengkap: /api/upload/files/{key}
+  const key = c.req.path.replace('/api/upload/files/', '');
 
   try {
     await deleteFromR2(c.env.R2, key);
