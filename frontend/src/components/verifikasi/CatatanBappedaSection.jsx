@@ -21,6 +21,23 @@ const STATUS_CLS = {
   tidak_ditemukan: 'bg-red-50 text-red-700 border-red-200',
 };
 
+const BULAN_ID = { 'januari':1,'februari':2,'maret':3,'april':4,'mei':5,'juni':6,'juli':7,'agustus':8,'september':9,'oktober':10,'november':11,'desember':12 };
+// Ubah nilai tanggal menjadi format yyyy-MM-dd (wajib untuk <input type="date">)
+// Terima: "2026-05-12", "12 Mei 2026", "2026-05-12T...", dll.
+function normalizeTanggal(v) {
+  if (!v) return '';
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const m = s.match(/^(\d{1,2})\s+([a-zA-Z]+)\s+(\d{4})/);
+  if (m) {
+    const bln = BULAN_ID[m[2].toLowerCase()];
+    if (bln) {
+      return `${m[3]}-${String(bln).padStart(2, '0')}-${String(Number(m[1])).padStart(2, '0')}`;
+    }
+  }
+  return '';
+}
+
 const emptyForm = { nama_biro: '', tanggal_verifikasi: '', bab: '', item: '', status: 'perlu_perbaikan', catatan: '' };
 
 // Section Catatan Bappeda — CRUD penuh (data dari database), dengan logika
@@ -77,7 +94,7 @@ export default function CatatanBappedaSection() {
     setEditing(c);
     setForm({
       nama_biro: c.nama_biro || '',
-      tanggal_verifikasi: c.tanggal_verifikasi || '',
+      tanggal_verifikasi: normalizeTanggal(c.tanggal_verifikasi),
       bab: c.bab || '',
       item: c.item || '',
       status: c.status || 'perlu_perbaikan',
@@ -277,7 +294,7 @@ export default function CatatanBappedaSection() {
 
       {/* Dialog Tambah/Edit */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg" aria-describedby={undefined}>
           <DialogHeader><DialogTitle>{editing ? 'Edit Catatan Bappeda' : 'Tambah Catatan Bappeda'}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">

@@ -254,7 +254,7 @@ export default function FileReferensi() {
           setUploadStatus({});
         }
       }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Tambahkan File Referensi (Batch)</DialogTitle>
           </DialogHeader>
