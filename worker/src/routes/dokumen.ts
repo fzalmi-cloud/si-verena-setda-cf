@@ -182,9 +182,11 @@ dokumenRoutes.post('/bulk-delete', async (c) => {
       ).bind(id).first();
       if (!dok) { notFound.push(id); continue; }
 
-      await c.env.DB.prepare('DELETE FROM dokumen_renja WHERE id = ?').bind(id).run();
-      // Hapus hasil pemeriksaan yang menautkan dokumen ini
+      // Hapus dependensi DULU (FK constraint): hasil pemeriksaan + referensi parent
       await c.env.DB.prepare('DELETE FROM hasil_pemeriksaan WHERE dokumen_renja_id = ?').bind(id).run();
+      await c.env.DB.prepare('UPDATE dokumen_renja SET parent_document_id = NULL WHERE parent_document_id = ?').bind(id).run();
+      // Lalu hapus dokumen
+      await c.env.DB.prepare('DELETE FROM dokumen_renja WHERE id = ?').bind(id).run();
       // Hapus file fisik dari R2 bila ada
       if (dok.file_key && c.env.R2) {
         try { await c.env.R2.delete(dok.file_key); } catch { /* file sudah tidak ada */ }
@@ -277,6 +279,9 @@ dokumenRoutes.delete('/:id', async (c) => {
     return c.json({ error: 'Dokumen tidak ditemukan' }, 404);
   }
 
+  // Hapus dependensi DULU (FK constraint), lalu dokumen
+  await c.env.DB.prepare('DELETE FROM hasil_pemeriksaan WHERE dokumen_renja_id = ?').bind(id).run();
+  await c.env.DB.prepare('UPDATE dokumen_renja SET parent_document_id = NULL WHERE parent_document_id = ?').bind(id).run();
   await c.env.DB.prepare(
     'DELETE FROM dokumen_renja WHERE id = ?'
   ).bind(id).run();
