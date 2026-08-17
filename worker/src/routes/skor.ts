@@ -163,6 +163,51 @@ skorRoutes.put('/:id', async (c) => {
   return c.json({ id, ...body });
 });
 
+// DELETE /api/skor/:id — hapus skor
+skorRoutes.delete('/:id', async (c) => {
+  const id = c.req.param('id');
+  const existing: any = await c.env.DB.prepare(
+    'SELECT id FROM skor_dokumen WHERE id = ?'
+  ).bind(id).first();
+  if (!existing) return c.json({ error: 'Skor tidak ditemukan' }, 404);
+  await c.env.DB.prepare('DELETE FROM skor_dokumen WHERE id = ?').bind(id).run();
+  return c.json({ message: 'Skor berhasil dihapus' });
+});
+
+// POST /api/skor/bulk-delete — hapus banyak skor
+skorRoutes.post('/bulk-delete', async (c) => {
+  try {
+    const { ids } = await c.req.json();
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return c.json({ error: 'ids wajib berupa array non-kosong' }, 400);
+    }
+    let deleted = 0;
+    for (const id of ids) {
+      await c.env.DB.prepare('DELETE FROM skor_dokumen WHERE id = ?').bind(id).run();
+      deleted++;
+    }
+    return c.json({ message: `${deleted} skor dihapus`, deleted });
+  } catch (error: any) {
+    return c.json({ error: 'Gagal bulk delete', detail: error.message }, 500);
+  }
+});
+
+// POST /api/skor/reset — RESET skor untuk biro+tahun (re-pemeriksaan)
+skorRoutes.post('/reset', async (c) => {
+  try {
+    const { nama_biro, tahun } = await c.req.json();
+    if (!nama_biro || !tahun) {
+      return c.json({ error: 'nama_biro dan tahun wajib diisi' }, 400);
+    }
+    const r: any = await c.env.DB.prepare(
+      'DELETE FROM skor_dokumen WHERE nama_biro = ? AND periode_tahun = ?'
+    ).bind(nama_biro, parseInt(tahun)).run();
+    return c.json({ message: `Skor ${nama_biro} ${tahun} direset`, deleted: r?.meta?.changes || 0 });
+  } catch (error: any) {
+    return c.json({ error: 'Gagal reset', detail: error.message }, 500);
+  }
+});
+
 // GET /api/skor/stats/ranking — ranking biro berdasarkan skor
 skorRoutes.get('/stats/ranking', async (c) => {
   const tahun = c.req.query('tahun') || new Date().getFullYear().toString();

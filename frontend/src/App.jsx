@@ -19,6 +19,8 @@ import HasilVerifikasi from '@/pages/HasilVerifikasi';
 import RiwayatRevisi from '@/pages/RiwayatRevisi';
 import MasterBiro from '@/pages/MasterBiro';
 import KelolaPengguna from '@/pages/KelolaPengguna';
+import PeriodeRenja from '@/pages/PeriodeRenja';
+import Profil from '@/pages/Profil';
 import UploadRenja from '@/pages/UploadRenja';
 import StatusPemeriksaan from '@/pages/StatusPemeriksaan';
 import UploadRevisi from '@/pages/UploadRevisi';
@@ -52,6 +54,8 @@ function App() {
                 <Route path="/hasil" element={<HasilVerifikasi />} />
                 <Route path="/riwayat" element={<RiwayatRevisi />} />
                 <Route path="/master-biro" element={<MasterBiro />} />
+                <Route path="/periode" element={<PeriodeRenja />} />
+                <Route path="/profil" element={<Profil />} />
                 <Route path="/pengguna" element={<KelolaPengguna />} />
                 <Route path="/upload-renja" element={<UploadRenja />} />
                 <Route path="/status-pemeriksaan" element={<StatusPemeriksaan />} />

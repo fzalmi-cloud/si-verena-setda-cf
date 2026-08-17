@@ -1,3 +1,4 @@
+import TahunSelect from '@/components/TahunSelect';
 import { useAuth } from '@/lib/AuthContext';
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -274,14 +275,7 @@ export default function GenerateDraft() {
         />
       </div>
 
-      <Select value={tahun} onValueChange={setTahun}>
-        <SelectTrigger><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="2025">2025</SelectItem>
-          <SelectItem value="2026">2026</SelectItem>
-          <SelectItem value="2027">2027</SelectItem>
-        </SelectContent>
-      </Select>
+      <TahunSelect value={tahun} onValueChange={setTahun} />
 
       {/* Progress */}
       {progress && (

@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, Building2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Building2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function MasterBiro() {
@@ -44,8 +45,16 @@ export default function MasterBiro() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['biro-list'] });
       toast.success('Biro berhasil dihapus');
+      setDeleteTarget(null);
+    },
+    onError: (err) => {
+      // Tampilkan pesan relasi-check dari backend (409)
+      toast.error('Gagal menghapus: ' + err.message);
+      setDeleteTarget(null);
     },
   });
+
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const resetForm = () => {
     setForm({ nama_biro: '', kode_biro: '', kepala_biro: '' });
@@ -107,7 +116,7 @@ export default function MasterBiro() {
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(biro)}>
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteMutation.mutate(biro.id)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteTarget(biro)}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   </div>
@@ -151,6 +160,24 @@ export default function MasterBiro() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Dialog Hapus Biro */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Biro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Biro "<strong>{deleteTarget?.nama_biro}</strong>" akan dihapus permanen. Penghapusan ditolak jika masih ada dokumen/skor/hasil pemeriksaan terkait.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => deleteMutation.mutate(deleteTarget.id)} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

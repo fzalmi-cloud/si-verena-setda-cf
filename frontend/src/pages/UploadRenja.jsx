@@ -276,15 +276,7 @@ export default function UploadRenja() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Tahun Renja <span className="text-destructive">*</span></label>
-                <Select value={tahun} onValueChange={setTahun}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2025">2025</SelectItem>
-                    <SelectItem value="2026">2026</SelectItem>
-                    <SelectItem value="2027">2027</SelectItem>
-                    <SelectItem value="2028">2028</SelectItem>
-                  </SelectContent>
-                </Select>
+                <TahunSelect value={tahun} onValueChange={setTahun} />
               </div>
             </div>
 

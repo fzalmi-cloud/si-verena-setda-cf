@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { UserPlus, Users, Pencil, Info, Trash2, Link2, Copy, Check, MailWarning, Mail, Loader2 } from 'lucide-react';
+import { UserPlus, Users, Pencil, Info, Trash2, Link2, Copy, Check, MailWarning, Mail, Loader2, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 
 const roleOptions = [
@@ -68,6 +68,9 @@ export default function KelolaPengguna() {
   const [inviteResult, setInviteResult] = useState(null);
   const [copied, setCopied] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [resetTarget, setResetTarget] = useState(null);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
   const [addEmail, setAddEmail] = useState('');
   const [addRole, setAddRole] = useState('biro_pemerintahan');
   const [addResult, setAddResult] = useState(null);
@@ -177,6 +180,22 @@ export default function KelolaPengguna() {
     });
   };
 
+  const handleResetPassword = async () => {
+    if (!resetTarget || !resetPassword) { toast.error('Isi password baru'); return; }
+    if (resetPassword.length < 6) { toast.error('Password minimal 6 karakter'); return; }
+    setResetBusy(true);
+    try {
+      await api.update('user', resetTarget.id, { password: resetPassword });
+      toast.success(`Password ${resetTarget.email} berhasil direset`);
+      setResetTarget(null);
+      setResetPassword('');
+    } catch (err) {
+      toast.error('Gagal reset password: ' + err.message);
+    } finally {
+      setResetBusy(false);
+    }
+  };
+
   // Group by role type
   const roleDesc = roleOptions.find(r => r.value === selectedRole);
 
@@ -237,6 +256,9 @@ export default function KelolaPengguna() {
                   <div className="flex items-center justify-center gap-1">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(user)}>
                       <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-primary" title="Reset password" onClick={() => { setResetTarget(user); setResetPassword(''); }}>
+                      <KeyRound className="w-3.5 h-3.5" />
                     </Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => setDeleteUser(user)}>
                       <Trash2 className="w-3.5 h-3.5" />
@@ -449,6 +471,31 @@ export default function KelolaPengguna() {
                 </Button>
               </>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Reset Password */}
+      <Dialog open={!!resetTarget} onOpenChange={(open) => !open && setResetTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Reset password untuk <strong>{resetTarget?.email}</strong>
+            </p>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Password Baru *</label>
+              <Input type="password" value={resetPassword} onChange={e => setResetPassword(e.target.value)} placeholder="Minimal 6 karakter" minLength={6} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetTarget(null)} disabled={resetBusy}>Batal</Button>
+            <Button onClick={handleResetPassword} disabled={resetBusy || !resetPassword}>
+              {resetBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <KeyRound className="w-4 h-4 mr-2" />}
+              Reset Password
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

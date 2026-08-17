@@ -1,3 +1,4 @@
+import TahunSelect from '@/components/TahunSelect';
 import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
@@ -13,8 +14,9 @@ import { jalankanAutoVerifikasi, simpanHasilAutoVerifikasi } from '@/lib/autoVer
 import ChecklistSection from '@/components/pemeriksaan/ChecklistSection';
 import ScoreGauge from '@/components/dashboard/ScoreGauge';
 import VerifikatorActions from '@/components/pemeriksaan/VerifikatorActions';
-import { Bot, Loader2, AlertTriangle, CheckCircle2, XCircle, Lock, FileSearch, BookOpen } from 'lucide-react';
+import { Bot, Loader2, AlertTriangle, CheckCircle2, XCircle, Lock, FileSearch, BookOpen, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { SETDA_NAME } from '@/pages/UploadRenja';
 
 const NARRATIVE_JENIS = ['narasi_renja', 'renja_biro', 'draft_renja_setda', 'revisi_renja'];
@@ -36,6 +38,8 @@ export default function Pemeriksaan() {
   const [tahun, setTahun] = useState(params.get('tahun') || '2027');
   const [localResults, setLocalResults] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [autoProgress, setAutoProgress] = useState(null);
 
   const { data: allBiroResponse = { data: [] } } = useQuery({
@@ -247,6 +251,25 @@ export default function Pemeriksaan() {
     }
   };
 
+  // ── Reset pemeriksaan (hapus hasil + skor utk biro+tahun) ──────────────────
+  const handleReset = async () => {
+    if (!selectedBiro) return;
+    setResetting(true);
+    try {
+      await api.request('/api/pemeriksaan/reset', { method: 'POST', body: JSON.stringify({ nama_biro: selectedBiro, tahun: parseInt(tahun) }) });
+      await api.request('/api/skor/reset', { method: 'POST', body: JSON.stringify({ nama_biro: selectedBiro, tahun: parseInt(tahun) }) });
+      queryClient.invalidateQueries({ queryKey: ['hasil-pemeriksaan'] });
+      queryClient.invalidateQueries({ queryKey: ['skor-read'] });
+      queryClient.invalidateQueries({ queryKey: ['skor-dokumen'] });
+      toast.success('Pemeriksaan direset. Jalankan AI ulang untuk memulai.');
+      setResetOpen(false);
+    } catch (err) {
+      toast.error('Gagal reset: ' + err.message);
+    } finally {
+      setResetting(false);
+    }
+  };
+
   const handleStatusChange = (item, newStatus) => {
     setLocalResults(prev => prev.map(r =>
       r.item_pemeriksaan === item.item ? { ...r, status: newStatus } : r
@@ -310,13 +333,7 @@ export default function Pemeriksaan() {
         </div>
         <div className="w-32">
           <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tahun</label>
-          <Select value={tahun} onValueChange={setTahun}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="2027">2027</SelectItem>
-              <SelectItem value="2026">2026</SelectItem>
-            </SelectContent>
-          </Select>
+          <TahunSelect value={tahun} onValueChange={setTahun} />
         </div>
         <Button
           onClick={handleAutoVerifikasi}
@@ -387,14 +404,38 @@ export default function Pemeriksaan() {
           </div>
 
           {/* ── Panel keputusan verifikator ── */}
-          <VerifikatorActions
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onSaveIntervention={handleSaveIntervention}
-            saving={saving}
-            totalItems={localResults.filter(r => r.status !== 'tidak_berlaku').length}
-            sesuaiCount={sesuaiCount}
-          />
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <VerifikatorActions
+              onApprove={handleApprove}
+              onReject={handleReject}
+              onSaveIntervention={handleSaveIntervention}
+              saving={saving}
+              totalItems={localResults.filter(r => r.status !== 'tidak_berlaku').length}
+              sesuaiCount={sesuaiCount}
+            />
+            <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setResetOpen(true)}>
+              <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reset Pemeriksaan
+            </Button>
+          </div>
+
+          {/* Dialog konfirmasi reset */}
+          <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset Pemeriksaan {selectedBiro}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Semua hasil pemeriksaan dan skor untuk {selectedBiro} tahun {tahun} akan dihapus. Anda dapat menjalankan pemeriksaan AI ulang setelahnya.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={resetting}>Batal</AlertDialogCancel>
+                <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleReset} disabled={resetting}>
+                  {resetting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Reset
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {/* Checklist per kategori */}
           <Tabs defaultValue="kelengkapan_dokumen">

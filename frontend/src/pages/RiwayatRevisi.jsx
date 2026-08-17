@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { api } from '@/api/client';
 import { getFileUrl } from "@/lib/utils";
@@ -7,13 +7,16 @@ import { filterBiroByRole, getSingleBiroForRole, isRestrictedRole } from '@/lib/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { History, FileText, ExternalLink } from 'lucide-react';
+import { History, FileText, ExternalLink, Trash2, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { SETDA_NAME } from '@/pages/UploadRenja';
 import { format } from 'date-fns';
 
 export default function RiwayatRevisi() {
   const { user } = useAuth();
   const role = user?.role;
+  const queryClient = useQueryClient();
+  const [deleting, setDeleting] = useState(null);
   const [selectedBiro, setSelectedBiro] = useState(getSingleBiroForRole(role) || '');
 
   const { data: allBiroResp } = useQuery({
@@ -45,6 +48,23 @@ export default function RiwayatRevisi() {
     ...dokumen.map(d => ({ ...d, type: 'dokumen' })),
     ...revisi.map(r => ({ ...r, type: 'revisi' })),
   ].sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+
+  // Hapus riwayat (type revisi -> riwayat_revisi; type dokumen -> dokumen_renja)
+  const handleDelete = async (item) => {
+    if (!window.confirm(`Hapus riwayat "${item.nama_file || item.jenis_dokumen}"?`)) return;
+    setDeleting(item.id);
+    try {
+      if (item.type === 'revisi') await api.delete('revisi', item.id);
+      else await api.delete('dokumenrenja', item.id);
+      toast.success('Riwayat dihapus');
+      queryClient.invalidateQueries({ queryKey: ['dokumen-riwayat'] });
+      queryClient.invalidateQueries({ queryKey: ['revisi-list'] });
+    } catch (err) {
+      toast.error('Gagal hapus: ' + err.message);
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -100,12 +120,22 @@ export default function RiwayatRevisi() {
                     {item.catatan_upload || item.catatan_revisi || '-'}
                   </TableCell>
                   <TableCell className="text-center">
-                    {item.file_url && (
-                      <a href={getFileUrl(item.file_url)} target="_blank" rel="noopener noreferrer"
-                        className="text-primary hover:text-primary/80">
-                        <ExternalLink className="w-4 h-4 inline" />
-                      </a>
-                    )}
+                    <div className="flex items-center justify-center gap-1">
+                      {item.file_url && (
+                        <a href={getFileUrl(item.file_url)} target="_blank" rel="noopener noreferrer"
+                          className="text-primary hover:text-primary/80">
+                          <ExternalLink className="w-4 h-4 inline" />
+                        </a>
+                      )}
+                      <button
+                        title="Hapus riwayat"
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        onClick={() => handleDelete(item)}
+                        disabled={deleting === item.id}
+                      >
+                        {deleting === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

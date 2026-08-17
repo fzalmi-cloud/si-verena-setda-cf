@@ -172,6 +172,51 @@ pemeriksaanRoutes.post('/:id/validate', async (c) => {
   return c.json({ message: 'Hasil pemeriksaan berhasil divalidasi' });
 });
 
+// DELETE /api/pemeriksaan/:id — hapus satu hasil pemeriksaan
+pemeriksaanRoutes.delete('/:id', async (c) => {
+  const id = c.req.param('id');
+  const existing: any = await c.env.DB.prepare(
+    'SELECT id FROM hasil_pemeriksaan WHERE id = ?'
+  ).bind(id).first();
+  if (!existing) return c.json({ error: 'Hasil pemeriksaan tidak ditemukan' }, 404);
+  await c.env.DB.prepare('DELETE FROM hasil_pemeriksaan WHERE id = ?').bind(id).run();
+  return c.json({ message: 'Hasil pemeriksaan berhasil dihapus' });
+});
+
+// POST /api/pemeriksaan/bulk-delete — hapus banyak hasil pemeriksaan
+pemeriksaanRoutes.post('/bulk-delete', async (c) => {
+  try {
+    const { ids } = await c.req.json();
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return c.json({ error: 'ids wajib berupa array non-kosong' }, 400);
+    }
+    let deleted = 0;
+    for (const id of ids) {
+      await c.env.DB.prepare('DELETE FROM hasil_pemeriksaan WHERE id = ?').bind(id).run();
+      deleted++;
+    }
+    return c.json({ message: `${deleted} hasil pemeriksaan dihapus`, deleted });
+  } catch (error: any) {
+    return c.json({ error: 'Gagal bulk delete', detail: error.message }, 500);
+  }
+});
+
+// POST /api/pemeriksaan/reset — RESET semua hasil pemeriksaan untuk biro+tahun (re-pemeriksaan)
+pemeriksaanRoutes.post('/reset', async (c) => {
+  try {
+    const { nama_biro, tahun } = await c.req.json();
+    if (!nama_biro || !tahun) {
+      return c.json({ error: 'nama_biro dan tahun wajib diisi' }, 400);
+    }
+    const r: any = await c.env.DB.prepare(
+      'DELETE FROM hasil_pemeriksaan WHERE nama_biro = ? AND periode_tahun = ?'
+    ).bind(nama_biro, parseInt(tahun)).run();
+    return c.json({ message: `Hasil pemeriksaan ${nama_biro} ${tahun} direset`, deleted: r?.meta?.changes || 0 });
+  } catch (error: any) {
+    return c.json({ error: 'Gagal reset', detail: error.message }, 500);
+  }
+});
+
 // GET /api/pemeriksaan/stats — statistik pemeriksaan
 pemeriksaanRoutes.get('/stats/summary', async (c) => {
   const tahun = c.req.query('tahun') || new Date().getFullYear().toString();

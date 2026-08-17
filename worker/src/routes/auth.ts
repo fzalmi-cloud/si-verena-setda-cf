@@ -131,6 +131,36 @@ authRoutes.get('/me', authMiddleware, async (c) => {
   return c.json(user);
 });
 
+// POST /api/auth/change-password — ganti password sendiri (wajib login)
+authRoutes.post('/change-password', authMiddleware, async (c) => {
+  const payload = (c as any).get('jwtPayload') as any;
+  const { old_password, new_password } = await c.req.json();
+
+  if (!old_password || !new_password || String(new_password).length < 6) {
+    return c.json({ error: 'Password baru minimal 6 karakter' }, 400);
+  }
+
+  const user: any = await c.env.DB.prepare(
+    'SELECT id, password_hash FROM users WHERE id = ?'
+  ).bind(payload?.sub).first();
+  if (!user) return c.json({ error: 'User tidak ditemukan' }, 404);
+
+  const hash = String(user.password_hash || '');
+  let valid = false;
+  if (hash.startsWith('$2a$') || hash.startsWith('$2b$') || hash.startsWith('$2y$')) {
+    valid = await bcrypt.compare(old_password, hash);
+  } else {
+    valid = old_password === hash; // legacy plaintext
+  }
+  if (!valid) return c.json({ error: 'Password lama salah' }, 401);
+
+  const newHash = await bcrypt.hash(String(new_password), 10);
+  await c.env.DB.prepare(
+    "UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?"
+  ).bind(newHash, user.id).run();
+  return c.json({ message: 'Password berhasil diubah' });
+});
+
 // POST /api/auth/verify-token
 authRoutes.post('/verify-token', async (c) => {
   const secret = getSecret(c);
@@ -213,7 +243,7 @@ userRoutes.post('/', async (c) => {
   return c.json({ message: 'User berhasil dibuat', id });
 });
 
-// PUT /api/user/:id — update user
+// PUT /api/user/:id — update user (admin; dukung reset password)
 userRoutes.put('/:id', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
@@ -227,12 +257,19 @@ userRoutes.put('/:id', async (c) => {
         params.push(body[key]);
       }
     }
+    // Reset password (dihash bcrypt, tidak disimpan plaintext)
+    if (body.password !== undefined && body.password !== null && body.password !== '') {
+      const hash = await bcrypt.hash(String(body.password), 10);
+      sets.push('password_hash = ?');
+      params.push(hash);
+    }
     if (sets.length === 0) return c.json({ error: 'Tidak ada field yang diupdate' }, 400);
     params.push(id);
     await c.env.DB.prepare(
       `UPDATE users SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`
     ).bind(...params).run();
-    return c.json({ id, ...body });
+    const { password, ...safe } = body;
+    return c.json({ id, ...safe });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }

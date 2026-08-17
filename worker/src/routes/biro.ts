@@ -57,12 +57,13 @@ biroRoutes.put('/:id', async (c) => {
   const params: any[] = [];
 
   for (const [key, value] of Object.entries(body)) {
-    if (key !== 'id') {
+    if (key !== 'id' && value !== undefined) {
       sets.push(`${key} = ?`);
       params.push(value);
     }
   }
 
+  if (sets.length === 0) return c.json({ error: 'Tidak ada field yang diupdate' }, 400);
   params.push(id);
 
   await c.env.DB.prepare(
@@ -70,4 +71,36 @@ biroRoutes.put('/:id', async (c) => {
   ).bind(...params).run();
 
   return c.json({ id, ...body });
+});
+
+// DELETE /api/biro/:id — hapus biro (BLOKIR jika masih ada data terkait)
+biroRoutes.delete('/:id', async (c) => {
+  const id = c.req.param('id');
+  const biro: any = await c.env.DB.prepare(
+    'SELECT * FROM biro WHERE id = ?'
+  ).bind(id).first();
+  if (!biro) return c.json({ error: 'Biro tidak ditemukan' }, 404);
+
+  // Cek data terkait (dokumen, skor, riwayat) berdasarkan nama_biro
+  const checks: [string, string][] = [
+    ['dokumen', 'SELECT COUNT(*) AS t FROM dokumen_renja WHERE nama_biro = ?'],
+    ['skor', 'SELECT COUNT(*) AS t FROM skor_dokumen WHERE nama_biro = ?'],
+    ['riwayat_revisi', 'SELECT COUNT(*) AS t FROM riwayat_revisi WHERE nama_biro = ?'],
+    ['hasil_pemeriksaan', 'SELECT COUNT(*) AS t FROM hasil_pemeriksaan WHERE nama_biro = ?'],
+  ];
+  const terkait: Record<string, number> = {};
+  for (const [label, sql] of checks) {
+    const r: any = await c.env.DB.prepare(sql).bind(biro.nama_biro).first();
+    terkait[label] = r?.t || 0;
+  }
+  const total = Object.values(terkait).reduce((a, b) => a + b, 0);
+  if (total > 0) {
+    return c.json({
+      error: `Biro tidak bisa dihapus — masih ada data terkait (dokumen: ${terkait.dokumen}, skor: ${terkait.skor}, riwayat: ${terkait.riwayat_revisi}, hasil: ${terkait.hasil_pemeriksaan})`,
+      terkait,
+    }, 409);
+  }
+
+  await c.env.DB.prepare('DELETE FROM biro WHERE id = ?').bind(id).run();
+  return c.json({ message: 'Biro berhasil dihapus' });
 });

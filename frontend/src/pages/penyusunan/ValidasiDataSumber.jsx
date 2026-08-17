@@ -1,3 +1,4 @@
+import TahunSelect from '@/components/TahunSelect';
 import { useAuth } from '@/lib/AuthContext';
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -180,14 +181,7 @@ export default function ValidasiDataSumber() {
           <p className="text-sm text-muted-foreground mt-1">Periksa kelengkapan data sebelum generate draft Renja Setda</p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={tahun} onValueChange={setTahun}>
-            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="2025">2025</SelectItem>
-              <SelectItem value="2026">2026</SelectItem>
-              <SelectItem value="2027">2027</SelectItem>
-            </SelectContent>
-          </Select>
+          <TahunSelect value={tahun} onValueChange={setTahun} />
           <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1">
             <RefreshCw className="w-3.5 h-3.5" /> Refresh
           </Button>

@@ -83,6 +83,35 @@ dokumenRoutes.get('/:id', async (c) => {
   return c.json(dokumen);
 });
 
+// Helper: catat riwayat revisi otomatis setiap kali dokumen dibuat/upload
+async function logRiwayatRevisi(c: any, body: any, newId: string) {
+  try {
+    const payload = (c as any).get('jwtPayload') as any;
+    const user = payload?.email || 'sistem';
+    // Versi = jumlah dokumen yang sudah ada utk biro+tahun+jenis (termasuk yang baru)
+    const count: any = await c.env.DB.prepare(
+      'SELECT COUNT(*) AS t FROM dokumen_renja WHERE nama_biro = ? AND periode_tahun = ? AND jenis_dokumen = ?'
+    ).bind(body.nama_biro, body.periode_tahun, body.jenis_dokumen).first();
+    const versi = body.versi || (count?.t || 0);
+
+    await c.env.DB.prepare(
+      `INSERT INTO riwayat_revisi (id, biro_id, nama_biro, periode_tahun, versi, jenis_dokumen, file_url, file_key, catatan_revisi, diunggah_oleh)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      newId,
+      body.biro_id || null,
+      body.nama_biro,
+      body.periode_tahun,
+      versi,
+      body.jenis_dokumen || 'renja_biro',
+      body.file_url || null,
+      body.file_key || null,
+      body.catatan_upload || 'Upload dokumen',
+      user
+    ).run();
+  } catch { /* pencatatan riwayat tidak boleh memblokir operasi utama */ }
+}
+
 // POST /api/dokumen — create dokumen
 dokumenRoutes.post('/', async (c) => {
   try {
@@ -107,6 +136,9 @@ dokumenRoutes.post('/', async (c) => {
       body.status_upload || 'diunggah', 
       body.catatan_upload || null
     ).run();
+
+    // Riwayat revisi otomatis
+    await logRiwayatRevisi(c, body, crypto.randomUUID());
 
     return c.json({ id, ...body }, 201);
   } catch (error: any) {
@@ -149,6 +181,8 @@ dokumenRoutes.post('/bulk', async (c) => {
         ).run();
         created++;
         ids.push(id);
+        // Riwayat revisi otomatis
+        await logRiwayatRevisi(c, body, crypto.randomUUID());
       } catch (e: any) {
         failed.push({ nama: body.nama_file || body.nama_biro, error: e.message });
       }

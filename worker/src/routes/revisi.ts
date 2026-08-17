@@ -69,6 +69,38 @@ revisiRoutes.post('/', async (c) => {
   return c.json({ id, ...body }, 201);
 });
 
+// PUT /api/revisi/:id — update riwayat revisi
+revisiRoutes.put('/:id', async (c) => {
+  const id = c.req.param('id');
+  const body = await c.req.json();
+
+  const sets: string[] = [];
+  const params: any[] = [];
+  for (const [key, value] of Object.entries(body)) {
+    if (key !== 'id' && value !== undefined) {
+      sets.push(`${key} = ?`);
+      params.push(value);
+    }
+  }
+  if (sets.length === 0) return c.json({ error: 'Tidak ada field yang diupdate' }, 400);
+  params.push(id);
+  await c.env.DB.prepare(
+    `UPDATE riwayat_revisi SET ${sets.join(', ')} WHERE id = ?`
+  ).bind(...params).run();
+  return c.json({ id, ...body });
+});
+
+// DELETE /api/revisi/:id — hapus riwayat revisi
+revisiRoutes.delete('/:id', async (c) => {
+  const id = c.req.param('id');
+  const existing: any = await c.env.DB.prepare(
+    'SELECT id FROM riwayat_revisi WHERE id = ?'
+  ).bind(id).first();
+  if (!existing) return c.json({ error: 'Riwayat revisi tidak ditemukan' }, 404);
+  await c.env.DB.prepare('DELETE FROM riwayat_revisi WHERE id = ?').bind(id).run();
+  return c.json({ message: 'Riwayat revisi berhasil dihapus' });
+});
+
 // GET /api/revisi/biro/:biro_id — get revisi by biro
 revisiRoutes.get('/biro/:biro_id', async (c) => {
   const biroId = c.req.param('biro_id');

@@ -1,3 +1,4 @@
+import TahunSelect from '@/components/TahunSelect';
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
@@ -144,13 +145,7 @@ export default function HasilVerifikasi() {
         </div>
         <div className="w-32">
           <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tahun</label>
-          <Select value={tahun} onValueChange={setTahun}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="2027">2027</SelectItem>
-              <SelectItem value="2026">2026</SelectItem>
-            </SelectContent>
-          </Select>
+          <TahunSelect value={tahun} onValueChange={setTahun} />
         </div>
       </div>
 

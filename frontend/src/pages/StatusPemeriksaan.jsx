@@ -1,3 +1,4 @@
+import TahunSelect from '@/components/TahunSelect';
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
@@ -102,13 +103,7 @@ export default function StatusPemeriksaan() {
           <p className="text-sm text-muted-foreground mt-1">Pantau progres verifikasi Renja seluruh Biro</p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={tahun} onValueChange={setTahun}>
-            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="2027">2027</SelectItem>
-              <SelectItem value="2026">2026</SelectItem>
-            </SelectContent>
-          </Select>
+          <TahunSelect value={tahun} onValueChange={setTahun} />
           <Button variant="outline" size="icon" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4" />
           </Button>

@@ -3,7 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, ClipboardCheck, FileSearch, History,
   Users, BookOpen, Shield, ChevronLeft, ChevronRight, LogOut, FileUp, BarChart2, GitCompare, Database, FolderOpen, Eye, X,
-  Sparkles, ClipboardList, CheckSquare, PenTool, Clock, Download, ChevronDown, ChevronUp
+  Sparkles, ClipboardList, CheckSquare, PenTool, Clock, Download, ChevronDown, ChevronUp,
+  CalendarRange, UserCircle
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -42,6 +43,7 @@ const navItems = [
   { label: 'Catatan Bappeda', icon: ClipboardCheck, path: '/catatan-bappeda', roles: ['admin', 'kabag', ...VERIF_ROLES] },
   { label: 'File Referensi AI', icon: Database, path: '/file-referensi', roles: ['admin', 'kabag'] },
   { label: 'Master Biro', icon: BookOpen, path: '/master-biro', roles: ['admin', 'kabag'] },
+  { label: 'Periode Renja', icon: CalendarRange, path: '/periode', roles: ['admin', 'kabag'] },
   { label: 'Kelola Pengguna', icon: Users, path: '/pengguna', roles: ['admin', 'kabag'] },
 ];
 
@@ -222,15 +224,24 @@ export default function Sidebar({ collapsed, setCollapsed, user, realUser }) {
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <><ChevronLeft className="w-4 h-4" /><span>Tutup</span></>}
           </button>
           {!collapsed && (
-            <button
-              onClick={() => {
-                localStorage.removeItem('auth_token');
-                window.location.href = '/login';
-              }}
-              className="px-3 py-2 rounded-lg text-sidebar-foreground/60 hover:bg-destructive/20 hover:text-destructive text-xs transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+            <>
+              <Link
+                to="/profil"
+                title="Profil"
+                className="px-3 py-2 rounded-lg text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground text-xs transition-colors"
+              >
+                <UserCircle className="w-4 h-4" />
+              </Link>
+              <button
+                onClick={() => {
+                  localStorage.removeItem('auth_token');
+                  window.location.href = '/login';
+                }}
+                className="px-3 py-2 rounded-lg text-sidebar-foreground/60 hover:bg-destructive/20 hover:text-destructive text-xs transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </>
           )}
         </div>
       </div>

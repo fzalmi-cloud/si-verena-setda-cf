@@ -1,3 +1,4 @@
+import TahunSelect from '@/components/TahunSelect';
 import { useAuth } from '@/lib/AuthContext';
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -110,14 +111,7 @@ export default function KompilasiRenjaBiro() {
           <p className="text-sm text-muted-foreground mt-1">Status dokumen terakhir setiap biro untuk tahun {tahun}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={tahun} onValueChange={setTahun}>
-            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="2025">2025</SelectItem>
-              <SelectItem value="2026">2026</SelectItem>
-              <SelectItem value="2027">2027</SelectItem>
-            </SelectContent>
-          </Select>
+          <TahunSelect value={tahun} onValueChange={setTahun} />
           <Link to="/penyusunan/validasi">
             <Button disabled={siapCount === 0}>
               Lanjut Validasi <ChevronRight className="w-4 h-4 ml-1" />

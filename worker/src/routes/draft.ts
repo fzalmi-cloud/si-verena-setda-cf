@@ -81,11 +81,11 @@ draftRoutes.post('/', async (c) => {
     body.versi || 1,
     body.judul,
     body.status || 'draft_otomatis',
-    body.generated_by,
-    body.catatan_umum,
-    body.jumlah_biro,
-    body.biro_digunakan,
-    body.ringkasan_eksekutif
+    body.generated_by ?? null,
+    body.catatan_umum ?? null,
+    body.jumlah_biro ?? null,
+    body.biro_digunakan ?? null,
+    body.ringkasan_eksekutif ?? null
   ).run();
 
   return c.json({ id, ...body }, 201);
@@ -335,4 +335,110 @@ draftRoutes.put('/:id', async (c) => {
   ).bind(...params).run();
 
   return c.json({ id, ...body });
+});
+
+// DELETE /api/draft/:id — hapus draft + seluruh bab/rekap/validasi terkait
+draftRoutes.delete('/:id', async (c) => {
+  const id = c.req.param('id');
+  const existing: any = await c.env.DB.prepare(
+    'SELECT id FROM draft_renja_setda WHERE id = ?'
+  ).bind(id).first();
+  if (!existing) return c.json({ error: 'Draft tidak ditemukan' }, 404);
+
+  // Hapus dependensi DULU (FK constraint)
+  await c.env.DB.prepare('DELETE FROM draft_renja_bab WHERE draft_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM draft_renja_rekap_biro WHERE draft_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM draft_renja_validasi WHERE draft_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM draft_renja_setda WHERE id = ?').bind(id).run();
+  return c.json({ message: 'Draft berhasil dihapus' });
+});
+
+// ── CRUD Rekap Biro (draft_renja_rekap_biro) ─────────────────────────────────
+
+// GET /api/draft/:id/rekap — list rekap biro utk draft
+draftRoutes.get('/:id/rekap', async (c) => {
+  const id = c.req.param('id');
+  const { results } = await c.env.DB.prepare(
+    'SELECT * FROM draft_renja_rekap_biro WHERE draft_id = ? ORDER BY nama_biro ASC'
+  ).bind(id).all();
+  return c.json({ data: results });
+});
+
+// POST /api/draft/:id/rekap — simpan/replace rekap biro utk draft
+draftRoutes.post('/:id/rekap', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const { items } = await c.req.json();
+    if (!Array.isArray(items)) return c.json({ error: 'items wajib array' }, 400);
+
+    await c.env.DB.prepare('DELETE FROM draft_renja_rekap_biro WHERE draft_id = ?').bind(id).run();
+    let created = 0;
+    for (const item of items) {
+      const rid = crypto.randomUUID();
+      await c.env.DB.prepare(
+        `INSERT INTO draft_renja_rekap_biro (id, draft_id, biro_id, nama_biro, jumlah_program, jumlah_kegiatan, jumlah_subkegiatan, total_pagu, jumlah_catatan, status_kesiapan, dokumen_id, skor_kesiapan)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        rid, id, item.biro_id || null, item.nama_biro,
+        item.jumlah_program || 0, item.jumlah_kegiatan || 0, item.jumlah_subkegiatan || 0,
+        item.total_pagu || 0, item.jumlah_catatan || 0,
+        item.status_kesiapan || 'tidak_ada_dokumen', item.dokumen_id || null, item.skor_kesiapan || null
+      ).run();
+      created++;
+    }
+    return c.json({ message: `${created} rekap disimpan`, created }, 201);
+  } catch (error: any) {
+    return c.json({ error: 'Gagal simpan rekap', detail: error.message }, 500);
+  }
+});
+
+// DELETE /api/draft/:id/rekap — hapus semua rekap utk draft
+draftRoutes.delete('/:id/rekap', async (c) => {
+  const id = c.req.param('id');
+  await c.env.DB.prepare('DELETE FROM draft_renja_rekap_biro WHERE draft_id = ?').bind(id).run();
+  return c.json({ message: 'Rekap biro dihapus' });
+});
+
+// ── CRUD Validasi (draft_renja_validasi) ─────────────────────────────────────
+
+// GET /api/draft/:id/validasi — list item validasi utk draft
+draftRoutes.get('/:id/validasi', async (c) => {
+  const id = c.req.param('id');
+  const { results } = await c.env.DB.prepare(
+    'SELECT * FROM draft_renja_validasi WHERE draft_id = ? ORDER BY rowid ASC'
+  ).bind(id).all();
+  return c.json({ data: results });
+});
+
+// POST /api/draft/:id/validasi — simpan/replace item validasi utk draft
+draftRoutes.post('/:id/validasi', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const { items } = await c.req.json();
+    if (!Array.isArray(items)) return c.json({ error: 'items wajib array' }, 400);
+
+    await c.env.DB.prepare('DELETE FROM draft_renja_validasi WHERE draft_id = ?').bind(id).run();
+    let created = 0;
+    for (const item of items) {
+      const vid = crypto.randomUUID();
+      await c.env.DB.prepare(
+        `INSERT INTO draft_renja_validasi (id, draft_id, komponen, sumber_data, status, catatan_sistem, aksi_perbaikan)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        vid, id, item.komponen || '', item.sumber_data || null,
+        item.status || 'tidak_ditemukan', item.catatan_sistem || null, item.aksi_perbaikan || null
+      ).run();
+      created++;
+    }
+    return c.json({ message: `${created} item validasi disimpan`, created }, 201);
+  } catch (error: any) {
+    return c.json({ error: 'Gagal simpan validasi', detail: error.message }, 500);
+  }
+});
+
+// DELETE /api/draft/:id/validasi — hapus semua validasi utk draft
+draftRoutes.delete('/:id/validasi', async (c) => {
+  const id = c.req.param('id');
+  await c.env.DB.prepare('DELETE FROM draft_renja_validasi WHERE draft_id = ?').bind(id).run();
+  return c.json({ message: 'Validasi dihapus' });
 });

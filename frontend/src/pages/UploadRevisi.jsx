@@ -197,15 +197,7 @@ export default function UploadRevisi() {
         </div>
         <div className="w-32">
           <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tahun</label>
-          <Select value={tahun} onValueChange={setTahun}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="2025">2025</SelectItem>
-              <SelectItem value="2026">2026</SelectItem>
-              <SelectItem value="2027">2027</SelectItem>
-              <SelectItem value="2028">2028</SelectItem>
-            </SelectContent>
-          </Select>
+          <TahunSelect value={tahun} onValueChange={setTahun} />
         </div>
       </div>
 
