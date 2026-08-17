@@ -217,3 +217,17 @@ CREATE TABLE IF NOT EXISTS riwayat_revisi (
 );
 CREATE INDEX IF NOT EXISTS idx_revisi_biro ON riwayat_revisi(nama_biro);
 CREATE INDEX IF NOT EXISTS idx_revisi_tahun ON riwayat_revisi(periode_tahun);
+
+-- Catatan Bappeda (catatan koreksi hasil verifikasi Renja oleh Bappeda)
+CREATE TABLE IF NOT EXISTS catatan_bappeda (
+  id TEXT PRIMARY KEY,
+  nama_biro TEXT NOT NULL,
+  tanggal_verifikasi TEXT,
+  bab TEXT,
+  item TEXT NOT NULL,
+  status TEXT DEFAULT 'perlu_perbaikan',
+  catatan TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_catatan_biro ON catatan_bappeda(nama_biro);

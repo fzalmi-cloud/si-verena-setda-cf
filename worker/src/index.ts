@@ -12,6 +12,7 @@ import { revisiRoutes } from './routes/revisi';
 import { fileRefRoutes } from './routes/fileRef';
 import { llmRoutes } from './routes/llm';
 import { periodeRoutes } from './routes/periode';
+import { catatanBappedaRoutes } from './routes/catatanBappeda';
 import { getFromR2 } from './storage/r2';
 
 export type Bindings = {
@@ -85,6 +86,7 @@ app.route('/api/riwayatrevisi', revisiRoutes);    // alias frontend
 app.route('/api/file-ref', fileRefRoutes);
 app.route('/api/llm', llmRoutes);
 app.route('/api/periode', periodeRoutes);
+app.route('/api/catatan-bappeda', catatanBappedaRoutes);
 
 // User management — HANYA admin (requireRole di dalam userRoutes)
 app.route('/api/user', userRoutes);
