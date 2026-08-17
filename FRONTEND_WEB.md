@@ -1,25 +1,33 @@
-# Frontend Baru: si-verena-setda-web
+# SI-VERENA SETDA — Frontend & Backend (Live)
 
-## URL
+## Frontend (satu-satunya, aktif)
 **https://si-verena-setda-web.pages.dev**
 
-## Koneksi ke Backend
-- Backend (Worker): https://si-verena-api.si-verena-setda.workers.dev
-- Frontend dibuild dengan `VITE_API_URL` -> Worker, jadi semua panggilan API
-  (login, upload, pemeriksaan, file referensi) langsung ke backend yang sudah
-  ter-fix (bcrypt, JWT_SECRET, /api/user admin-only, upload referensi 201).
+## Backend (Worker)
+**https://si-verena-api.si-verena-setda.workers.dev**
+
+- Frontend dibuild dengan `VITE_API_URL` -> Worker.
+- Semua endpoint backend sudah ter-fix:
+  - Upload referensi `POST /api/file-ref` (tidak lagi 500)
+  - Login bcrypt (bukan password hardcoded)
+  - `JWT_SECRET` di-set via wrangler secret (token lama invalid)
+  - CRUD user hanya admin (`/api/user`)
+  - Register selalu role `biro_pengusul`
+  - Data mock seed sudah dibersihkan (cleanup_demo_data.sql)
 
 ## Auto-Deploy
 - Repo: fzalmi-cloud/si-verena-setda-cf (branch main)
-- Workflow: .github/workflows/deploy-frontend.yml -> Pages project si-verena-setda-web
-- Env VITE_API_URL sudah diset di deployment_configs project.
+- `deploy-worker.yml` -> Worker si-verena-api
+- `deploy-frontend.yml` -> Pages project si-verena-setda-web
+- Secret GitHub: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, VITE_API_URL
 
-## Proyek Pages lain di akun
-- si-verena-setda (lama, terikat git fzalmi/si-verena-setda, belum di-update)
-- si-verena-setda-fix (versi perantara, bisa dihapus)
-- si-verena-setda-web (BARU - dipakai sekarang)
+## Riwayat Cleanup
+- 2026-08-17: Proyek Pages lama dihapus (si-verena-setda, si-verena-setda-fix).
+  Hanya si-verena-setda-web yang tersisa.
 
-## Cara update manual (jika perlu)
+## Manual Deploy (jika perlu)
+```bash
 cd frontend
 VITE_API_URL="https://si-verena-api.si-verena-setda.workers.dev" npm run build
 npx wrangler pages deploy dist --project-name si-verena-setda-web
+```
