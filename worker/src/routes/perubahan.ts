@@ -742,6 +742,150 @@ const SETDA_TEMPLATE = [
   { chapter: '4', sub: '4.3', judul: 'Tindak Lanjut', urutan: 18 },
 ];
 
+// ── Helper kompilasi otomatis (Fase 1) ──────────────────────────────
+function parseJSONStrict(raw: string): any {
+  let s = String(raw).replace(/^```(?:json)?/i, '').replace(/```$/g, '').trim();
+  try { return JSON.parse(s); } catch { /* lanjut */ }
+  const a = s.indexOf('{'), b = s.lastIndexOf('}');
+  if (a >= 0 && b > a) { try { return JSON.parse(s.slice(a, b + 1)); } catch { /* gagal */ } }
+  return null;
+}
+
+// Ekstrak program/kegiatan dari satu versi dokumen biro (AI).
+// force=false → skip jika versi sudah punya data program (hemat biaya AI).
+async function extractProgramsForVersion(env: any, provider: any, version: any, sub: any, force = false) {
+  if (!force) {
+    const existing: any = await env.DB.prepare('SELECT COUNT(*) AS t FROM renja_perubahan_programs WHERE version_id = ?').bind(version.id).first();
+    if ((existing?.t || 0) > 0) return { saved: existing.t, skipped: true };
+  }
+  let konten = '';
+  if (version.main_file_url && env.R2) {
+    try { const ext = await extractTextFromR2(env.R2, version.main_file_url, version.main_file_name); konten = ext.text; } catch { /* best effort */ }
+  }
+  if (konten.trim().length < 500) konten = (version.extracted_content || '').slice(0, 60000);
+  const { results: refs } = await env.DB.prepare(
+    "SELECT * FROM renja_perubahan_references WHERE active = 1 AND document_type IN ('perubahan_rkpd','rancangan_perubahan_rkpd') ORDER BY priority ASC"
+  ).all();
+  const refContext = (refs as any[]).map(r => `- ${r.title}`).join('\n');
+  const prompt = `Ekstrak SEMUA Program, Kegiatan dan Subkegiatan dari dokumen Renja Perubahan Biro ${sub?.nama_biro} tahun ${sub?.year} V${version.version_number}.
+
+ISI DOKUMEN:
+"""
+${konten}
+"""
+
+${refContext ? `DOKUMEN ACUAN (Perubahan RKPD):\n${refContext}\n` : ''}
+
+Untuk setiap item, ekstrak: kode program, nama program, kode kegiatan, nama kegiatan, kode subkegiatan, nama subkegiatan, indikator, target awal, target perubahan, satuan, pagu awal (angka), pagu perubahan (angka), sumber dana, lokasi, kelompok sasaran.
+FOKUS pada tabel (mis. T-C.29 / T-C.33 / matriks) di BAB III dan BAB IV. Jika dokumen memuat tabel program/kegiatan, WAJIB ekstrak baris-barisnya.
+ATURAN: hanya data yang BENAR-BENAR ada di dokumen. JANGAN mengarang. Jika tidak ada, kosongkan. TANPA indentasi/spasi berlebih agar output ringkas (format padat).
+
+Format JSON (hanya JSON, padat):
+{"programs": [{"program_code":"","program_name":"","activity_code":"","activity_name":"","subactivity_code":"","subactivity_name":"","indicator":"","target_awal":"","target_perubahan":"","satuan":"","pagu_awal":0,"pagu_perubahan":0,"sumber_dana":"","lokasi":"","kelompok_sasaran":""}]}`;
+
+  let programs: any[] = [];
+  try {
+    const resp = await provider.generate(prompt);
+    const parsed = parseJSONStrict(resp);
+    programs = parsed?.programs || [];
+  } catch (e: any) { programs = []; console.log('[extract] parse gagal:', e.message); }
+
+  if (force) await env.DB.prepare('DELETE FROM renja_perubahan_programs WHERE version_id = ?').bind(version.id).run();
+  let saved = 0;
+  for (const p of programs) {
+    if (!p.program_name && !p.activity_name) continue;
+    await env.DB.prepare(
+      `INSERT INTO renja_perubahan_programs (id, version_id, submission_id, nama_biro, year, version_number, program_code, program_name, activity_code, activity_name, subactivity_code, subactivity_name, indicator, target_awal, target_perubahan, satuan, pagu_awal, pagu_perubahan, sumber_dana, lokasi, kelompok_sasaran, source_location)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      crypto.randomUUID(), version.id, sub?.id || null, sub?.nama_biro || '', sub?.year || 0, version.version_number,
+      p.program_code || '', p.program_name || '', p.activity_code || '', p.activity_name || '',
+      p.subactivity_code || '', p.subactivity_name || '', p.indicator || '', p.target_awal || '',
+      p.target_perubahan || '', p.satuan || '', Number(p.pagu_awal) || 0, Number(p.pagu_perubahan) || 0,
+      p.sumber_dana || '', p.lokasi || '', p.kelompok_sasaran || '',
+      `V${version.version_number} — ${sub?.nama_biro || ''}`
+    ).run();
+    saved++;
+  }
+  return { saved, skipped: false };
+}
+
+// Ringkas dokumen biro per BAB (I–IV) sebagai bahan kompilasi Setda.
+async function digestBiroDoc(provider: any, sub: any, version: any, konten: string) {
+  const prompt = `Buat RINGKASAN TERSTRUKTUR dokumen Renja PERUBAHAN Biro ${sub.nama_biro} Provinsi Sumatera Barat tahun ${sub.year} versi V${version.version_number} sesuai sistematika Permendagri 86/2017.
+
+ISI DOKUMEN:
+"""
+${konten.slice(0, 25000)}
+"""
+
+Hasilkan JSON (hanya JSON, padat):
+{"bab1":"Ringkasan BAB I Pendahuluan: latar belakang, landasan hukum, maksud dan tujuan, keterkaitan dengan Perubahan RKPD, sistematika penulisan. Maks 250 kata.",
+"bab2":"Ringkasan BAB II Evaluasi Pelaksanaan Renja s.d. Triwulan II: capaian program/kegiatan, capaian kinerja dan anggaran, permasalahan dan hambatan, isu penting, tindak lanjut. Maks 300 kata.",
+"bab3":"Ringkasan BAB III Rencana Kerja dan Pendanaan: rencana program/kegiatan/subkegiatan perubahan, indikator dan target, pagu awal, pagu perubahan, selisih, sumber dana, lokasi. Sertakan ANGKA PENTING. Maks 350 kata.",
+"bab4":"Ringkasan BAB IV Penutup: kesimpulan, kaidah pelaksanaan, tindak lanjut. Maks 200 kata."}
+ATURAN: hanya gunakan data yang benar-benar ada di dokumen. JANGAN mengarang. Gunakan bahasa Indonesia formal.`;
+  const resp = await provider.generate(prompt);
+  const parsed = parseJSONStrict(resp);
+  return { bab1: parsed?.bab1 || '', bab2: parsed?.bab2 || '', bab3: parsed?.bab3 || '', bab4: parsed?.bab4 || '' };
+}
+
+// Tabel matriks kompak dari hasil ekstraksi program (untuk section 3.4 & prompt BAB III).
+function buildMatrixText(programs: any[]) {
+  const map = new Map<string, any>();
+  for (const pr of programs) {
+    const key = `${pr.program_code || '?'}|${pr.activity_code || '?'}|${pr.subactivity_code || '?'}`;
+    const cur: any = map.get(key) || { ...pr, biro: [], pagu_awal: 0, pagu_perubahan: 0 };
+    cur.biro = [...new Set([...(cur.biro || []), pr.nama_biro])];
+    cur.pagu_awal += Number(pr.pagu_awal) || 0;
+    cur.pagu_perubahan += Number(pr.pagu_perubahan) || 0;
+    map.set(key, cur);
+  }
+  const rows = [...map.values()].sort((a, b) => `${a.program_code || ''}.${a.activity_code || ''}.${a.subactivity_code || ''}`.localeCompare(`${b.program_code || ''}.${b.activity_code || ''}.${b.subactivity_code || ''}`));
+  return rows.map(r => `${r.program_code || ''}.${r.activity_code || ''}.${r.subactivity_code || ''} | ${[r.program_name, r.activity_name, r.subactivity_name].filter(Boolean).join(' — ')} | Pagu Awal: ${r.pagu_awal} | Pagu Perubahan: ${r.pagu_perubahan} | Selisih: ${(Number(r.pagu_perubahan) || 0) - (Number(r.pagu_awal) || 0)} | Biro: ${r.biro.join(', ')}`).join('\n');
+}
+
+// Susun isi section untuk satu BAB dari ringkasan seluruh biro + data program.
+async function compileBAB(provider: any, ctx: {
+  year: number; bab: number; template: any[]; digests: any[]; matrixText: string;
+  refContext: string; finalCount: number; compiledCount: number;
+}) {
+  const { year, bab, template, digests, matrixText, refContext, finalCount, compiledCount } = ctx;
+  const key = `bab${bab}`;
+  const biroData = digests.map(d => {
+    const isi = d.digest?.[key] || '';
+    return `### ${d.nama_biro} — ${d.final ? 'FINAL' : 'BELUM FINAL'} (${d.status}) V${d.version}\n${isi || '(Tidak dapat diekstrak dari dokumen.)'}`;
+  }).join('\n\n');
+
+  const prompt = `Anda adalah penyusun dokumen perencanaan daerah. KOMPILASIKAN data biro-biro di bawah ini menjadi isi resmi BAB ${bab} draft Renja PERUBAHAN SETDA Provinsi Sumatera Barat tahun ${year}.
+
+SUBBAB YANG HARUS DIISI:
+${template.map((t: any) => `- ${t.sub} ${t.judul}`).join('\n')}
+
+DATA PER BIRO (ringkasan ekstraksi):
+${biroData}
+
+${matrixText ? `MATRIKS RENJA PERUBAHAN TERKOMPILASI (semua biro):\n${matrixText}\n` : ''}
+
+${refContext ? `DOKUMEN ACUAN AKTIF:\n${refContext}\n` : ''}
+
+CATATAN: ${finalCount} dari ${compiledCount} biro sudah FINAL. Biro belum final ditandai "BELUM FINAL" — data tetap dipakai sebagai draft awal.
+
+TUGAS: tulis isi setiap subbab dengan mengkompilasi data SEMUA biro (bukan hanya satu biro), bahasa Indonesia formal sesuai kaidah dokumen perencanaan daerah, angka ditulis konsisten. Jika suatu subbab belum ada datanya, tulis: "Data belum tersedia dan akan dilengkapi setelah seluruh biro ditetapkan final."
+
+Format JSON (hanya JSON):
+{"sections":[{"sub":"${template[0]?.sub}","content":"isi subbab (gunakan \\n untuk paragraf baru)"}]}
+Semua subbab wajib ada: ${template.map((t: any) => t.sub).join(', ')}.`;
+
+  const resp = await provider.generate(prompt);
+  const parsed = parseJSONStrict(resp);
+  const sections: Record<string, string> = {};
+  for (const s of (parsed?.sections || [])) {
+    if (s?.sub && s?.content) sections[s.sub] = String(s.content);
+  }
+  return { sections, status: 'otomatis' };
+}
+
 perubahanRoutes.get('/setda', async (c) => {
   const year = c.req.query('year');
   const limit = parseInt(c.req.query('limit') || '20');
@@ -751,6 +895,15 @@ perubahanRoutes.get('/setda', async (c) => {
   q += ' ORDER BY created_at DESC LIMIT ?';
   p.push(limit);
   const { results } = await c.env.DB.prepare(q).bind(...p).all();
+  return c.json({ data: results });
+});
+
+// GET /api/perubahan/years — daftar tahun yang punya data submissions (untuk default tahun)
+perubahanRoutes.get('/years', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT s.year, COUNT(*) AS total, SUM(CASE WHEN s.status = 'final' THEN 1 ELSE 0 END) AS final_count
+     FROM renja_perubahan_submissions s GROUP BY s.year ORDER BY s.year DESC`
+  ).all();
   return c.json({ data: results });
 });
 
@@ -767,59 +920,143 @@ perubahanRoutes.get('/setda/:id', async (c) => {
   return c.json({ ...setda, sections, sources });
 });
 
-// Generate draft Renja Perubahan Setda (konsolidasi biro FINAL)
+// Generate / Generate Ulang draft Renja Perubahan Setda — KOMPILASI OTOMATIS
+// dari SEMUA biro yang sudah mengunggah dokumen (final maupun belum final).
 perubahanRoutes.post('/setda/generate', async (c) => {
-  const { year, mode } = await c.req.json();
+  const { year, mode, setda_id } = await c.req.json();
   const payload = (c as any).get('jwtPayload') as any;
-  const finalSubs: any[] = (await c.env.DB.prepare(
-    "SELECT * FROM renja_perubahan_submissions WHERE year = ? AND status = 'final' ORDER BY nama_biro ASC"
-  ).bind(year).all()).results;
-  const allSubs: any[] = (await c.env.DB.prepare(
-    'SELECT * FROM renja_perubahan_submissions WHERE year = ?'
-  ).bind(year).all()).results;
 
-  if (mode !== 'draft' && allSubs.length > 0 && finalSubs.length < allSubs.length) {
+  const allSubs: any[] = (await c.env.DB.prepare(
+    'SELECT * FROM renja_perubahan_submissions WHERE year = ? AND current_version > 0 ORDER BY nama_biro ASC'
+  ).bind(year).all()).results;
+  const finalSubs = allSubs.filter(s => s.status === 'final');
+
+  if (allSubs.length === 0) {
+    return c.json({ error: 'Belum ada biro yang mengunggah dokumen untuk tahun ini.' }, 409);
+  }
+  if (mode !== 'draft' && finalSubs.length < allSubs.length) {
     return c.json({
-      error: `Belum semua biro Final (${finalSubs.length}/${allSubs.length}). Gunakan mode DRAFT untuk menyusun draft sementara.`,
-      final: finalSubs.length,
-      total: allSubs.length,
+      error: `Belum semua biro Final (${finalSubs.length}/${allSubs.length}). Gunakan mode DRAFT untuk kompilasi awal.`,
+      final: finalSubs.length, total: allSubs.length,
       belum_final: allSubs.filter(s => s.status !== 'final').map(s => s.nama_biro),
     }, 409);
   }
 
-  const id = crypto.randomUUID();
-  const version = (allSubs as any[]).length ? 1 : 1;
-  const ringkasan = `${finalSubs.length} biro final dari ${allSubs.length} biro. Mode: ${mode === 'draft' ? 'DRAFT — BELUM LENGKAP' : 'FINAL'}.`;
-
-  await c.env.DB.prepare(
-    `INSERT INTO renja_perubahan_setda (id, year, version, status, ringkasan, generated_by, generated_at, mode, jumlah_biro_final)
-     VALUES (?, ?, ?, 'draft', ?, ?, datetime('now'), ?, ?)`
-  ).bind(id, year, version, ringkasan, payload?.email || 'sistem', mode === 'draft' ? 'draft_konsolidasi' : 'draft_konsolidasi', finalSubs.length).run();
-
-  // Sections (struktur) — data dari biro final sebagai sumber
-  for (const t of SETDA_TEMPLATE) {
-    await c.env.DB.prepare(
-      `INSERT INTO renja_perubahan_sections (id, setda_id, chapter, subchapter, judul, content, status, urutan)
-       VALUES (?, ?, ?, ?, ?, ?, 'belum_disusun', ?)`
-    ).bind(crypto.randomUUID(), id, t.chapter, t.sub, t.judul,
-      finalSubs.length ? '' : 'Data Belum Tersedia', t.urutan).run();
+  const provider = getLLMProvider(c.env);
+  const id = setda_id || crypto.randomUUID();
+  let sv = 1;
+  if (setda_id) {
+    const existing: any = await c.env.DB.prepare('SELECT * FROM renja_perubahan_setda WHERE id = ?').bind(setda_id).first();
+    if (!existing) return c.json({ error: 'Draft tidak ditemukan' }, 404);
+    if (existing.year !== year) return c.json({ error: 'Tahun draft tidak cocok' }, 400);
+    sv = (existing.version || 1) + 1;
+    await c.env.DB.prepare('DELETE FROM renja_perubahan_sections WHERE setda_id = ?').bind(setda_id).run();
+    await c.env.DB.prepare('DELETE FROM renja_perubahan_sources WHERE setda_id = ?').bind(setda_id).run();
   }
 
-  // Sources (traceability) per biro final
-  for (const s of finalSubs) {
+  // 1) Versi terakhir tiap biro + ekstraksi program (paralel, skip jika sudah ada)
+  const biroData: any[] = [];
+  for (const s of allSubs) {
     const vers: any = await c.env.DB.prepare(
       'SELECT * FROM renja_perubahan_versions WHERE submission_id = ? ORDER BY version_number DESC LIMIT 1'
     ).bind(s.id).first();
-    await c.env.DB.prepare(
-      `INSERT INTO renja_perubahan_sources (id, setda_id, nama_biro, version_id, version_number, source_location, source_type)
-       VALUES (?, ?, ?, ?, ?, ?, 'renja_perubahan_biro_final')`
-    ).bind(crypto.randomUUID(), id, s.nama_biro, vers?.id || null, vers?.version_number || s.current_version || 0,
-      `Dokumen Final ${s.nama_biro} V${vers?.version_number || s.current_version || 0}`).run();
+    if (!vers) continue;
+    biroData.push({ sub: s, version: vers, prog: { saved: 0, skipped: false }, digest: null });
+  }
+  await Promise.allSettled(biroData.map(async (b) => {
+    b.prog = await extractProgramsForVersion(c.env, provider, b.version, b.sub).catch(() => ({ saved: 0, skipped: false }));
+  }));
+
+  // 2) Ekstrak teks + ringkasan per biro (paralel, best-effort)
+  await Promise.allSettled(biroData.map(async (b) => {
+    let konten = '';
+    if (b.version.main_file_url && c.env.R2) {
+      try { const ext = await extractTextFromR2(c.env.R2, b.version.main_file_url, b.version.main_file_name); konten = ext.text; } catch { /* best effort */ }
+    }
+    if (konten.trim().length < 500) konten = (b.version.extracted_content || '').slice(0, 60000);
+    if (konten.trim().length > 100) {
+      b.digest = await digestBiroDoc(provider, b.sub, b.version, konten).catch(() => null);
+    }
+  }));
+
+  // 3) Program hasil ekstraksi → matriks & BAB III
+  const biroNames = biroData.map(b => b.sub.nama_biro);
+  const { results: programs } = await c.env.DB.prepare(
+    'SELECT * FROM renja_perubahan_programs WHERE year = ? AND nama_biro IN (SELECT value FROM json_each(?))'
+  ).bind(year, JSON.stringify(biroNames)).all();
+  const { results: refs } = await c.env.DB.prepare(
+    'SELECT * FROM renja_perubahan_references WHERE active = 1 ORDER BY priority ASC'
+  ).all();
+  const refContext = (refs as any[]).map(r => `- ${r.title} (Tipe: ${r.document_type}, Prioritas: ${r.priority})`).join('\n');
+  const matrixText = buildMatrixText(programs as any[]);
+
+  // 4) Kompilasi section per BAB (paralel, best-effort); section 3.4 matriks diisi langsung
+  const compiledContent: Record<string, string> = {};
+  const sectionStatus: Record<string, string> = {};
+  const digests = biroData.map(b => ({ nama_biro: b.sub.nama_biro, status: b.sub.status, final: b.sub.status === 'final', version: b.version.version_number, digest: b.digest }));
+  if (matrixText) {
+    compiledContent['3.4'] = `Matriks Renja Perubahan Setda Tahun ${year} (kompilasi ${biroData.length} biro):\n\n${matrixText}`;
+    sectionStatus['3.4'] = 'otomatis';
+  }
+  const babResults = await Promise.allSettled([1, 2, 3, 4].map(async (bab) => {
+    const tpl = SETDA_TEMPLATE.filter(t => Number(t.chapter) === bab);
+    const r = await compileBAB(provider, { year, bab, template: tpl, digests, matrixText: bab === 3 ? matrixText : '', refContext, finalCount: finalSubs.length, compiledCount: biroData.length });
+    return { bab, r };
+  }));
+  for (const br of babResults) {
+    if (br.status !== 'fulfilled') continue;
+    for (const t of SETDA_TEMPLATE.filter(x => Number(x.chapter) === br.value.bab)) {
+      if (compiledContent[t.sub]) continue; // jangan timpa 3.4
+      if (br.value.r.sections[t.sub]) { compiledContent[t.sub] = br.value.r.sections[t.sub]; sectionStatus[t.sub] = 'otomatis'; }
+      else sectionStatus[t.sub] = 'perlu_review';
+    }
   }
 
-  await logAudit(c, 'generate_setda', 'rp_setda', id, `Generate Renja Perubahan Setda ${year} (${finalSubs.length} biro final, mode ${mode})`);
-  await createNotification(c.env, 'verifikator', '', 'setda', `Draft Renja Perubahan Setda ${year} tersedia`);
-  return c.json({ id, message: `Draft Renja Perubahan Setda dibuat (${finalSubs.length} biro final)` }, 201);
+  // 5) Simpan / perbarui setda
+  const totalPagu = (programs as any[]).reduce((acc: any, p: any) => {
+    acc.pagu_awal += Number(p.pagu_awal) || 0;
+    acc.pagu_perubahan += Number(p.pagu_perubahan) || 0;
+    return acc;
+  }, { pagu_awal: 0, pagu_perubahan: 0 });
+  const ringkasan = `${finalSubs.length} final dari ${biroData.length} biro dikompilasi. Mode: ${mode === 'draft' ? 'KOMPILASI AWAL — BELUM FINAL' : 'FINAL'}.`;
+
+  if (setda_id) {
+    await c.env.DB.prepare(
+      `UPDATE renja_perubahan_setda SET version = ?, status = 'draft', ringkasan = ?, generated_by = ?, generated_at = datetime('now'), mode = 'draft_konsolidasi', total_pagu_awal = ?, total_pagu_perubahan = ?, jumlah_biro_final = ?, updated_at = datetime('now') WHERE id = ?`
+    ).bind(sv, ringkasan, payload?.email || 'sistem', totalPagu.pagu_awal, totalPagu.pagu_perubahan, finalSubs.length, id).run();
+  } else {
+    await c.env.DB.prepare(
+      `INSERT INTO renja_perubahan_setda (id, year, version, status, ringkasan, generated_by, generated_at, mode, total_pagu_awal, total_pagu_perubahan, jumlah_biro_final)
+       VALUES (?, ?, ?, 'draft', ?, ?, datetime('now'), 'draft_konsolidasi', ?, ?, ?)`
+    ).bind(id, year, sv, ringkasan, payload?.email || 'sistem', totalPagu.pagu_awal, totalPagu.pagu_perubahan, finalSubs.length).run();
+  }
+
+  // 6) Sections
+  for (const t of SETDA_TEMPLATE) {
+    const content = compiledContent[t.sub] ?? (biroData.length ? 'Data belum tersedia dan akan dilengkapi setelah seluruh biro ditetapkan final.' : 'Data Belum Tersedia');
+    const status = sectionStatus[t.sub] || (content.startsWith('Data belum tersedia') ? 'perlu_review' : 'otomatis');
+    await c.env.DB.prepare(
+      `INSERT INTO renja_perubahan_sections (id, setda_id, chapter, subchapter, judul, content, status, urutan)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(crypto.randomUUID(), id, t.chapter, t.sub, t.judul, content, status, t.urutan).run();
+  }
+
+  // 7) Sources (traceability + status final/draft)
+  for (const b of biroData) {
+    await c.env.DB.prepare(
+      `INSERT INTO renja_perubahan_sources (id, setda_id, nama_biro, version_id, version_number, source_location, source_type, data_value)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      crypto.randomUUID(), id, b.sub.nama_biro, b.version.id, b.version.version_number,
+      `Dokumen ${b.sub.nama_biro} V${b.version.version_number}`,
+      b.sub.status === 'final' ? 'renja_perubahan_biro_final' : 'renja_perubahan_biro_draft',
+      `status: ${b.sub.status}${b.sub.has_critical_open ? ' (temuan kritis terbuka)' : ''} · program terekstrak: ${b.prog?.saved || 0}`
+    ).run();
+  }
+
+  await logAudit(c, setda_id ? 'regenerate_setda' : 'generate_setda', 'rp_setda', id, `Kompilasi Renja Perubahan Setda ${year}: ${biroData.length} biro (${finalSubs.length} final), mode ${mode}`);
+  await createNotification(c.env, 'verifikator', '', 'setda', `Draft Renja Perubahan Setda ${year} dikompilasi dari ${biroData.length} biro`);
+  return c.json({ id, message: `Draft Renja Perubahan Setda dikompilasi dari ${biroData.length} biro (${finalSubs.length} final)` }, setda_id ? 200 : 201);
 });
 
 perubahanRoutes.put('/sections/:id', async (c) => {
@@ -876,7 +1113,7 @@ perubahanRoutes.post('/setda/:id/approve', async (c) => {
   if (type === 'final') {
     const setda: any = await c.env.DB.prepare('SELECT * FROM renja_perubahan_setda WHERE id = ?').bind(id).first();
     const belumFinal: any = (await c.env.DB.prepare(
-      "SELECT COUNT(*) AS t FROM renja_perubahan_submissions WHERE year = ? AND status != 'final'"
+      "SELECT COUNT(*) AS t FROM renja_perubahan_submissions WHERE year = ? AND current_version > 0 AND status != 'final'"
     ).bind(setda.year).first());
     if ((belumFinal?.t || 0) > 0) {
       return c.json({ error: `Tidak dapat Final — masih ada ${belumFinal.t} biro belum Final` }, 409);
@@ -925,70 +1162,14 @@ perubahanRoutes.get('/audit', async (c) => {
 
 // ══════════════ PROGRAM & MATRIKS (konsolidasi Setda) ══════════════
 
-// POST /api/perubahan/programs/extract — ekstrak program/kegiatan dari versi final (AI)
+// POST /api/perubahan/programs/extract — ekstrak program/kegiatan dari satu versi (AI)
 perubahanRoutes.post('/programs/extract', async (c) => {
   const { version_id } = await c.req.json();
   const version: any = await c.env.DB.prepare('SELECT * FROM renja_perubahan_versions WHERE id = ?').bind(version_id).first();
   if (!version) return c.json({ error: 'Versi tidak ditemukan' }, 404);
   const sub: any = await c.env.DB.prepare('SELECT * FROM renja_perubahan_submissions WHERE id = ?').bind(version.submission_id).first();
-
-  const { results: refs } = await c.env.DB.prepare(
-    "SELECT * FROM renja_perubahan_references WHERE active = 1 AND document_type IN ('perubahan_rkpd','rancangan_perubahan_rkpd') ORDER BY priority ASC"
-  ).all();
-  const refContext = (refs as any[]).map(r => `- ${r.title}`).join('\n');
-
   const provider = getLLMProvider(c.env);
-  // Selalu ekstrak ulang teks penuh dari R2 (paling andal)
-  let konten = '';
-  if (version.main_file_url && c.env.R2) {
-    const ext = await extractTextFromR2(c.env.R2, version.main_file_url, version.main_file_name);
-    konten = ext.text;
-  }
-  if (konten.trim().length < 500) konten = (version.extracted_content || '').slice(0, 60000);
-  const prompt = `Ekstrak SEMUA Program, Kegiatan dan Subkegiatan dari dokumen Renja Perubahan Biro ${sub?.nama_biro} tahun ${sub?.year} V${version.version_number}.
-
-ISI DOKUMEN:
-"""
-${konten}
-"""
-
-${refContext ? `DOKUMEN ACUAN (Perubahan RKPD):\n${refContext}\n` : ''}
-
-Untuk setiap item, ekstrak: kode program, nama program, kode kegiatan, nama kegiatan, kode subkegiatan, nama subkegiatan, indikator, target awal, target perubahan, satuan, pagu awal (angka), pagu perubahan (angka), sumber dana, lokasi, kelompok sasaran.
-FOKUS pada tabel (mis. T-C.29 / T-C.33 / matriks) di BAB III dan BAB IV. Jika dokumen memuat tabel program/kegiatan, WAJIB ekstrak baris-barisnya.
-ATURAN: hanya data yang BENAR-BENAR ada di dokumen. JANGAN mengarang. Jika tidak ada, kosongkan. TANPA indentasi/spasi berlebih agar output ringkas (format padat).
-
-Format JSON (hanya JSON, padat):
-{"programs": [{"program_code":"","program_name":"","activity_code":"","activity_name":"","subactivity_code":"","subactivity_name":"","indicator":"","target_awal":"","target_perubahan":"","satuan":"","pagu_awal":0,"pagu_perubahan":0,"sumber_dana":"","lokasi":"","kelompok_sasaran":""}]}`;
-
-  let programs: any[] = [];
-  let resp = '';
-  try {
-    resp = await provider.generate(prompt);
-    const raw = String(resp).replace(/^```(?:json)?/i, '').replace(/```$/g, '').trim();
-    const a = raw.indexOf('{'), b = raw.lastIndexOf('}');
-    const parsed = JSON.parse(raw.slice(a, b + 1));
-    programs = parsed?.programs || [];
-  } catch (e: any) { programs = []; console.log('[extract] parse gagal:', e.message); }
-
-  // Hapus data lama versi ini, simpan baru
-  await c.env.DB.prepare('DELETE FROM renja_perubahan_programs WHERE version_id = ?').bind(version_id).run();
-  let saved = 0;
-  for (const p of programs) {
-    if (!p.program_name && !p.activity_name) continue;
-    await c.env.DB.prepare(
-      `INSERT INTO renja_perubahan_programs (id, version_id, submission_id, nama_biro, year, version_number, program_code, program_name, activity_code, activity_name, subactivity_code, subactivity_name, indicator, target_awal, target_perubahan, satuan, pagu_awal, pagu_perubahan, sumber_dana, lokasi, kelompok_sasaran, source_location)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-      crypto.randomUUID(), version_id, sub?.id || null, sub?.nama_biro || '', sub?.year || 0, version.version_number,
-      p.program_code || '', p.program_name || '', p.activity_code || '', p.activity_name || '',
-      p.subactivity_code || '', p.subactivity_name || '', p.indicator || '', p.target_awal || '',
-      p.target_perubahan || '', p.satuan || '', Number(p.pagu_awal) || 0, Number(p.pagu_perubahan) || 0,
-      p.sumber_dana || '', p.lokasi || '', p.kelompok_sasaran || '',
-      `V${version.version_number} — ${sub?.nama_biro || ''}`
-    ).run();
-    saved++;
-  }
+  const { saved } = await extractProgramsForVersion(c.env, provider, version, sub, true);
   await logAudit(c, 'extract_programs', 'rp_version', version_id, `Ekstrak program V${version.version_number} ${sub?.nama_biro}: ${saved} item`);
   return c.json({ message: `${saved} program/kegiatan diekstrak`, programs: saved });
 });
@@ -1019,6 +1200,12 @@ perubahanRoutes.get('/setda/:id/matriks', async (c) => {
     'SELECT * FROM renja_perubahan_sources WHERE setda_id = ?'
   ).bind(id).all();
   const biroNames = (sources as any[]).map(s => s.nama_biro);
+  // Status tiap biro utk penanda FINAL/DRAFT pada matriks
+  const { results: subsYear } = await c.env.DB.prepare(
+    'SELECT nama_biro, status, has_critical_open FROM renja_perubahan_submissions WHERE year = ?'
+  ).bind(setda.year).all();
+  const biroStatus: Record<string, any> = {};
+  (subsYear as any[]).forEach(s => { biroStatus[s.nama_biro] = { status: s.status, kritis: !!s.has_critical_open }; });
   const { results: programs } = await c.env.DB.prepare(
     'SELECT * FROM renja_perubahan_programs WHERE year = ? AND nama_biro IN (SELECT value FROM json_each(?))'
   ).bind(setda.year, JSON.stringify(biroNames)).all();
@@ -1075,7 +1262,7 @@ perubahanRoutes.get('/setda/:id/matriks', async (c) => {
   return c.json({
     rows, perBiro, totalPaguAwal, totalPaguPerubahan,
     totalSelisih: totalPaguPerubahan - totalPaguAwal,
-    conflicts, biroNames,
+    conflicts, biroNames, biroStatus,
   });
 });
 

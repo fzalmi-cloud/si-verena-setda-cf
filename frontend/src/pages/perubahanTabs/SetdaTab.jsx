@@ -8,9 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Layers, Sparkles, Loader2, ShieldCheck, CheckCircle2, Save, Bot, FileText, Download, Search, Lock, AlertTriangle } from 'lucide-react';
+import { Layers, Sparkles, Loader2, ShieldCheck, CheckCircle2, Save, Bot, FileText, Download, Search, Lock, AlertTriangle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import TahunSelect from '@/components/TahunSelect';
+
+const STATUS_LABEL = { otomatis: 'OTOMATIS', perlu_review: 'PERLU REVIEW', disusun: 'DISUSUN MANUAL', belum_disusun: 'BELUM DISUSUN' };
+const STATUS_COLOR = { otomatis: 'text-emerald-600', perlu_review: 'text-amber-600', disusun: 'text-blue-600', belum_disusun: 'text-muted-foreground' };
+const statusLabel = s => STATUS_LABEL[s] || s || '—';
+const statusColor = s => STATUS_COLOR[s] || 'text-muted-foreground';
 
 export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif }) {
   const [tahunState, setTahunState] = useState(tahun);
@@ -106,13 +111,16 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
   }, [selectedSetda, refreshKey]);
 
   const finalCount = submissions.filter(s => s.status === 'final').length;
+  const compiledCount = submissions.filter(s => (s.current_version || 0) > 0).length;
   const progress = submissions.length > 0 ? Math.round((finalCount / submissions.length) * 100) : 0;
   const belumFinal = submissions.filter(s => s.status !== 'final');
 
-  const generate = async () => {
+  const generate = async (regenerate = false) => {
     setGenerating(true);
     try {
-      const resp = await api.request('/api/perubahan/setda/generate', { method: 'POST', body: JSON.stringify({ year: parseInt(tahunState), mode }) });
+      const payload = { year: parseInt(tahunState), mode };
+      if (regenerate && detail) payload.setda_id = detail.id;
+      const resp = await api.request('/api/perubahan/setda/generate', { method: 'POST', body: JSON.stringify(payload) });
       toast.success(resp.message || 'Draft dibuat');
       const r = await api.list('perubahan/setda', { year: parseInt(tahunState), limit: 20 });
       const list = Array.isArray(r?.data) ? r.data : [];
@@ -245,7 +253,7 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h3 className="text-sm font-semibold flex items-center gap-2"><Layers className="w-4 h-4 text-primary" /> Renja Perubahan Sekretariat Daerah</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">{finalCount} dari {submissions.length || 0} Biro Siap Konsolidasi</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{compiledCount} dari {submissions.length || 0} Biro Dikompilasi ({finalCount} Final)</p>
           </div>
           <div className="flex items-center gap-2">
             <TahunSelect value={tahunState} onValueChange={setTahunState} />
@@ -256,10 +264,16 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
                 <SelectItem value="final">FINAL (semua biro harus Final)</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={generate} disabled={generating || submissions.length === 0} className="bg-purple-600 hover:bg-purple-700">
+            <Button onClick={() => generate(false)} disabled={generating || compiledCount === 0} className="bg-purple-600 hover:bg-purple-700">
               {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-              {generating ? 'Mengonsolidasi...' : 'GENERATE DRAFT RENJA PERUBAHAN SETDA'}
+              {generating ? 'Mengompilasi...' : 'KOMPILASI DRAFT'}
             </Button>
+            {detail && (
+              <Button onClick={() => generate(true)} disabled={generating} variant="outline" className="text-purple-700 border-purple-300">
+                {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                {generating ? 'Memperbarui...' : `PERBARUI DRAFT V${detail.version}`}
+              </Button>
+            )}
           </div>
         </div>
         <div className="mt-3 h-3 bg-muted rounded-full overflow-hidden">
@@ -308,7 +322,7 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
                 <button key={s.id} className="w-full text-left px-4 py-2.5 hover:bg-muted/20 text-xs"
                   onClick={() => { const el = document.getElementById('sec-' + s.id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
                   <span className="font-semibold text-primary">{s.chapter}.{s.subchapter}</span> {s.judul}
-                  <span className="block text-[9px] text-muted-foreground">{s.status}</span>
+                  <span className={`block text-[9px] ${statusColor(s.status)}`}>{statusLabel(s.status)}</span>
                 </button>
               ))}
             </div>
@@ -316,7 +330,10 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
           <div className="lg:col-span-2 space-y-4">
             {sections.map(s => (
               <div key={s.id} id={'sec-' + s.id} className="bg-card border border-border rounded-xl p-4">
-                <p className="text-sm font-semibold">{s.chapter}.{s.subchapter} {s.judul}</p>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="text-sm font-semibold">{s.chapter}.{s.subchapter} {s.judul}</p>
+                  <Badge variant="outline" className={`text-[9px] ${statusColor(s.status)}`}>{statusLabel(s.status)}</Badge>
+                </div>
                 {isVerif && !isFinal ? (
                   <>
                     <Textarea rows={4} className="mt-2 text-xs font-mono" value={editContent[s.id] || ''}
@@ -337,7 +354,7 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
         <div className="text-center py-14 text-muted-foreground border-2 border-dashed border-border rounded-xl">
           <Layers className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="text-sm">Renja Perubahan Setda Belum Siap Disusun</p>
-          <p className="text-xs mt-1">{finalCount} dari {submissions.length || 0} Biro telah Final. Klik "Generate Draft" untuk mulai.</p>
+          <p className="text-xs mt-1">{compiledCount} dari {submissions.length || 0} Biro telah mengunggah dokumen. Klik "Kompilasi Draft" untuk mulai — biro belum final tetap dikompilasi sebagai draft awal.</p>
         </div>
       )}
 
@@ -362,7 +379,7 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
           </div>
 
           {matriksLoading ? <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div> :
-           !matriks ? <p className="text-xs text-muted-foreground text-center py-6">Belum ada data matriks. Klik "Ekstrak Program (Biro Final)" setelah biro Final.</p> : (
+           !matriks ? <p className="text-xs text-muted-foreground text-center py-6">Belum ada data matriks. Klik "Kompilasi Draft" untuk mengekstrak program dari semua biro.</p> : (
             <>
               {/* Total Setda */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -429,7 +446,15 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
                         <td className="px-2 py-1.5 text-right">{new Intl.NumberFormat('id-ID').format(r.pagu_awal)}</td>
                         <td className="px-2 py-1.5 text-right font-semibold">{new Intl.NumberFormat('id-ID').format(r.pagu_perubahan)}</td>
                         <td className={`px-2 py-1.5 text-right font-bold ${r.selisih >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{r.selisih >= 0 ? '+' : ''}{new Intl.NumberFormat('id-ID').format(r.selisih)}</td>
-                        <td className="px-2 py-1.5">{r.biro}{r.duplikat ? <span className="text-[9px] text-amber-600 ml-1">(multi-biro)</span> : ''}</td>
+                        <td className="px-2 py-1.5">{r.biro}{r.duplikat ? <span className="text-[9px] text-amber-600 ml-1">(multi-biro)</span> : ''}
+                          {(() => {
+                            const bs = (r.biro || '').split(', ').map(b => matriks?.biroStatus?.[b]).filter(Boolean);
+                            const nonFinal = bs.filter(x => x.status !== 'final');
+                            if (nonFinal.length) return <span className="block text-[9px] text-amber-600 mt-0.5">⚠ {nonFinal.length} biro belum final</span>;
+                            if (bs.length) return <span className="block text-[9px] text-emerald-600 mt-0.5">✓ semua final</span>;
+                            return null;
+                          })()}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -449,7 +474,8 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
             {sourceData.map(s => (
               <div key={s.id} className="p-2.5 rounded-lg border border-border text-xs">
                 <p className="font-medium">Sumber: {s.source_location || s.nama_biro}</p>
-                <p className="text-muted-foreground">Biro: {s.nama_biro} · V{s.version_number} · {s.source_type}</p>
+                <p className="text-muted-foreground">Biro: {s.nama_biro} · V{s.version_number} · {s.source_type === 'renja_perubahan_biro_final' ? 'FINAL ✓' : 'DRAFT ⚠ (belum final)'}</p>
+                {s.data_value && <p className="text-[10px] text-muted-foreground mt-0.5">{s.data_value}</p>}
               </div>
             ))}
           </div>

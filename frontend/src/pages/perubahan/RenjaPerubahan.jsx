@@ -47,6 +47,16 @@ export default function RenjaPerubahan() {
   const isVerif = ['admin', 'kabag', 'verifikator', 'verifikator_1', 'verifikator_2', 'verifikator_3', 'reviewer'].includes(role);
   const biroSaya = user?.nama_biro || '';
 
+  // Default tahun: jika URL tidak menyebut tahun, otomatis ke tahun yang punya data submissions
+  useEffect(() => {
+    if (params.get('tahun')) return;
+    api.list('perubahan/years').then(r => {
+      const ys = Array.isArray(r?.data) ? r.data : [];
+      if (ys.length) setTahun(String(ys[0].year));
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     api.list('periode', { jenis: 'perubahan', limit: 100 }).then(resp => {
       const list = Array.isArray(resp?.data) ? resp.data : [];
