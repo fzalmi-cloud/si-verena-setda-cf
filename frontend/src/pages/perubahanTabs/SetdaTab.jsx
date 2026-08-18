@@ -19,6 +19,43 @@ const statusColor = s => STATUS_COLOR[s] || 'text-muted-foreground';
 const FIELD_LABEL = { pagu_perubahan: 'Pagu Perubahan', pagu_awal: 'Pagu Awal', nama: 'Nama', target_perubahan: 'Target Perubahan' };
 const fieldLabel = f => FIELD_LABEL[f] || f;
 
+// Pisahkan konten section menjadi blok paragraf & tabel (baris berisi >= 3 kolom '|')
+function parseTableBlocks(text) {
+  const lines = (text || '').split('\n');
+  const blocks = [];
+  let i = 0;
+  while (i < lines.length) {
+    const isTable = lines[i].split('|').length >= 3;
+    if (isTable) {
+      const rows = [];
+      while (i < lines.length && lines[i].split('|').length >= 3) {
+        rows.push(lines[i].split('|').map(c => c.trim()));
+        i++;
+      }
+      blocks.push({ type: 'table', rows });
+    } else {
+      const paras = [];
+      while (i < lines.length && lines[i].split('|').length < 3) {
+        if (lines[i].trim()) paras.push(lines[i]);
+        i++;
+      }
+      blocks.push({ type: 'text', lines: paras });
+    }
+  }
+  return blocks;
+}
+
+function TableBlock({ rows }) {
+  return (
+    <div className="mt-1 mb-2 overflow-x-auto border border-border rounded-lg">
+      <table className="w-full text-[10px]">
+        <thead><tr>{rows[0].map((c, ci) => <th key={ci} className="px-1.5 py-1 bg-muted/40 text-left font-semibold text-foreground border-b border-border whitespace-nowrap">{c}</th>)}</tr></thead>
+        <tbody>{rows.slice(1).map((r, ri) => <tr key={ri} className="border-b border-border/40">{r.map((c, ci) => <td key={ci} className="px-1.5 py-1 align-top">{c}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif }) {
   const [tahunState, setTahunState] = useState(tahun);
   // Sinkronkan tahun dengan header halaman
@@ -181,7 +218,7 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
     setExporting(type);
     try {
       if (type === 'docx') {
-        const { Document, Packer, Paragraph, HeadingLevel, Header, Footer, PageNumber, AlignmentType, PageBreak } = await import('docx');
+        const { Document, Packer, Paragraph, HeadingLevel, Header, Footer, PageNumber, AlignmentType, PageBreak, Table, TableRow, TableCell, WidthType } = await import('docx');
         const { saveAs } = await import('file-saver');
         const children = [];
         children.push(new Paragraph({ text: 'RENJA PERUBAHAN SEKRETARIAT DAERAH PROVINSI SUMATERA BARAT', heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER }));
@@ -200,7 +237,23 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
           }
           children.push(new Paragraph({ text: `BAB ${s.chapter}`, heading: HeadingLevel.HEADING_1 }));
           children.push(new Paragraph({ text: `${s.chapter}.${s.subchapter} ${s.judul}`, heading: HeadingLevel.HEADING_2 }));
-          (s.content || '').split('\n').filter(Boolean).forEach(p => children.push(new Paragraph({ text: p })));
+          // Paragraf & tabel (baris '|' -> tabel Word sesungguhnya)
+          parseTableBlocks(s.content).forEach(b => {
+            if (b.type === 'table') {
+              children.push(new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                rows: b.rows.map((r, ri) => new TableRow({
+                  tableHeader: ri === 0,
+                  children: r.map(c => new TableCell({
+                    shading: ri === 0 ? { fill: 'EDE9FE' } : undefined,
+                    children: [new Paragraph({ text: c, size: 16 })],
+                  })),
+                })),
+              }));
+            } else {
+              b.lines.forEach(p => children.push(new Paragraph({ text: p, size: 20 })));
+            }
+          });
         });
         const doc = new Document({
           sections: [{
@@ -222,6 +275,12 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
           ['BAB', 'Sub', 'Judul', 'Konten'],
           ...sections.map(s => [s.chapter, s.subchapter, s.judul, s.content || '']),
         ]), 'Struktur');
+        // Sheet tabel Permendagri (Tabel 3.1, 3.3, 3.4) dari konten section
+        [['3.1', 'Rekap_Program'], ['3.3', 'Rekap_Pagu'], ['3.4', 'Matriks']].forEach(([sub, sheetName]) => {
+          const sec = sections.find(x => x.subchapter === sub);
+          const tb = sec ? parseTableBlocks(sec.content).find(b => b.type === 'table') : null;
+          if (tb) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tb.rows), sheetName);
+        });
         XLSX.writeFile(wb, `Renja_Perubahan_Setda_${tahunState}.xlsx`);
       } else {
         const { jsPDF } = await import('jspdf');
@@ -239,10 +298,26 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
           const judul = `${s.chapter}.${s.subchapter} ${s.judul}`;
           doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
           if (y > 275) { doc.addPage(); y = 20; }
+          doc.setTextColor(30, 41, 59);
           doc.text(judul, 14, y); y += 6;
           doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-          const lines = doc.splitTextToSize(s.content || 'Data Belum Tersedia', 182);
-          for (const l of lines) { if (y > 275) { doc.addPage(); y = 20; } doc.text(l, 14, y); y += 5; }
+          parseTableBlocks(s.content || 'Data Belum Tersedia').forEach(b => {
+            if (b.type === 'table') {
+              autoTable(doc, {
+                startY: y,
+                head: [b.rows[0]],
+                body: b.rows.slice(1),
+                theme: 'grid',
+                styles: { fontSize: 6, cellPadding: 1 },
+                headStyles: { fillColor: [88, 28, 135], fontSize: 6.5, textColor: 255 },
+                margin: { left: 14, right: 14 },
+              });
+              y = doc.lastAutoTable.finalY + 5;
+            } else {
+              const lines = doc.splitTextToSize(b.lines.join('\n'), 182);
+              for (const l of lines) { if (y > 275) { doc.addPage(); y = 20; } doc.setTextColor(30, 41, 59); doc.text(l, 14, y); y += 5; }
+            }
+          });
           y += 3;
         });
         const pages = doc.getNumberOfPages();
@@ -354,7 +429,11 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
                     <Button size="sm" className="mt-2" onClick={() => saveSection(s.id)}><Save className="w-3.5 h-3.5 mr-1" /> Simpan</Button>
                   </>
                 ) : (
-                  <p className="text-xs text-muted-foreground mt-2 whitespace-pre-wrap">{s.content || 'Data Belum Tersedia'}</p>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    {parseTableBlocks(s.content).map((b, bi) => b.type === 'table'
+                      ? <TableBlock key={bi} rows={b.rows} />
+                      : <div key={bi} className="whitespace-pre-wrap">{b.lines.join('\n')}</div>)}
+                  </div>
                 )}
               </div>
             ))}

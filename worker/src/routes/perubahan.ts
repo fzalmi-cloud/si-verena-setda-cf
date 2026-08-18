@@ -830,19 +830,57 @@ ATURAN: hanya gunakan data yang benar-benar ada di dokumen. JANGAN mengarang. Gu
   return { bab1: parsed?.bab1 || '', bab2: parsed?.bab2 || '', bab3: parsed?.bab3 || '', bab4: parsed?.bab4 || '' };
 }
 
-// Tabel matriks kompak dari hasil ekstraksi program (untuk section 3.4 & prompt BAB III).
-function buildMatrixText(programs: any[]) {
-  const map = new Map<string, any>();
+// Tabel-tabel standar Permendagri 86/2017 utk Renja Perubahan Setda (BAB III):
+//  Tabel 3.1 — Rekapitulasi Rencana Program dan Kegiatan per Bidang Urusan (per Program)
+//  Tabel 3.3 — Rekapitulasi Pagu Awal, Pagu Perubahan dan Selisih (per Program/Kegiatan)
+//  Tabel 3.4 — Matriks Renja Perubahan Setda (per Program/Kegiatan/Subkegiatan)
+function fmtNum(n: number): string {
+  return new Intl.NumberFormat('id-ID').format(n || 0);
+}
+function buildSetdaTables(programs: any[]) {
+  const progMap = new Map<string, any>();
+  const kegMap = new Map<string, any>();
+  const subMap = new Map<string, any>();
   for (const pr of programs) {
-    const key = `${pr.program_code || '?'}|${pr.activity_code || '?'}|${pr.subactivity_code || '?'}`;
-    const cur: any = map.get(key) || { ...pr, biro: [], pagu_awal: 0, pagu_perubahan: 0 };
-    cur.biro = [...new Set([...(cur.biro || []), pr.nama_biro])];
-    cur.pagu_awal += Number(pr.pagu_awal) || 0;
-    cur.pagu_perubahan += Number(pr.pagu_perubahan) || 0;
-    map.set(key, cur);
+    const pk = `${pr.program_code || ''}`;
+    const kk = `${pr.program_code || ''}.${pr.activity_code || ''}`;
+    const sk = `${pr.program_code || ''}.${pr.activity_code || ''}.${pr.subactivity_code || ''}`;
+    const p = progMap.get(pk) || { kode: pr.program_code || '', nama: pr.program_name || '', kegiatan: new Set(), pagu_awal: 0, pagu_perubahan: 0, biro: new Set() };
+    p.kegiatan.add(pr.activity_name || pr.activity_code || '');
+    p.pagu_awal += Number(pr.pagu_awal) || 0;
+    p.pagu_perubahan += Number(pr.pagu_perubahan) || 0;
+    p.biro.add(pr.nama_biro);
+    progMap.set(pk, p);
+    const k = kegMap.get(kk) || { kode: kk, nama: [pr.program_name, pr.activity_name].filter(Boolean).join(' — '), pagu_awal: 0, pagu_perubahan: 0, biro: new Set() };
+    k.pagu_awal += Number(pr.pagu_awal) || 0;
+    k.pagu_perubahan += Number(pr.pagu_perubahan) || 0;
+    k.biro.add(pr.nama_biro);
+    kegMap.set(kk, k);
+    const s = subMap.get(sk) || { kode: sk, nama: [pr.program_name, pr.activity_name, pr.subactivity_name].filter(Boolean).join(' — '), pagu_awal: 0, pagu_perubahan: 0, biro: new Set() };
+    s.pagu_awal += Number(pr.pagu_awal) || 0;
+    s.pagu_perubahan += Number(pr.pagu_perubahan) || 0;
+    s.biro.add(pr.nama_biro);
+    subMap.set(sk, s);
   }
-  const rows = [...map.values()].sort((a, b) => `${a.program_code || ''}.${a.activity_code || ''}.${a.subactivity_code || ''}`.localeCompare(`${b.program_code || ''}.${b.activity_code || ''}.${b.subactivity_code || ''}`));
-  return rows.map(r => `${r.program_code || ''}.${r.activity_code || ''}.${r.subactivity_code || ''} | ${[r.program_name, r.activity_name, r.subactivity_name].filter(Boolean).join(' — ')} | Pagu Awal: ${r.pagu_awal} | Pagu Perubahan: ${r.pagu_perubahan} | Selisih: ${(Number(r.pagu_perubahan) || 0) - (Number(r.pagu_awal) || 0)} | Biro: ${r.biro.join(', ')}`).join('\n');
+  const sortByKode = (a: any, b: any) => a.kode.localeCompare(b.kode, 'en', { numeric: true });
+  const header = `${'Kode'.padEnd(26)}| ${'Program / Kegiatan / Subkegiatan'.padEnd(72)}| Pagu Awal | Pagu Perubahan | Selisih | Biro`;
+  const row = (kode: string, nama: string, paguA: number, paguP: number, extra: string) => {
+    const selisih = (paguP || 0) - (paguA || 0);
+    return `${String(kode).padEnd(26)}| ${String(nama).slice(0, 72).padEnd(72)}| ${fmtNum(paguA).padStart(12)} | ${fmtNum(paguP).padStart(14)} | ${fmtNum(selisih).padStart(14)} | ${extra}`;
+  };
+  const rekapProgram = [
+    header,
+    ...[...progMap.values()].sort(sortByKode).map(p => row(p.kode, p.nama, p.pagu_awal, p.pagu_perubahan, `${p.kegiatan.size} kegiatan (${[...p.biro].join(', ')})`)),
+  ].join('\n');
+  const rekapKegiatan = [
+    header,
+    ...[...kegMap.values()].sort(sortByKode).map(k => row(k.kode, k.nama, k.pagu_awal, k.pagu_perubahan, [...k.biro].join(', '))),
+  ].join('\n');
+  const matriks = [
+    header,
+    ...[...subMap.values()].sort(sortByKode).map(s => row(s.kode, s.nama, s.pagu_awal, s.pagu_perubahan, [...s.biro].join(', '))),
+  ].join('\n');
+  return { rekapProgram, rekapKegiatan, matriks };
 }
 
 // Susun isi section untuk satu BAB dari ringkasan seluruh biro + data program.
@@ -980,7 +1018,7 @@ perubahanRoutes.post('/setda/generate', async (c) => {
     }
   }));
 
-  // 3) Program hasil ekstraksi → matriks & BAB III
+  // 3) Program hasil ekstraksi → tabel Permendagri & BAB III
   const biroNames = biroData.map(b => b.sub.nama_biro);
   const { results: programs } = await c.env.DB.prepare(
     'SELECT * FROM renja_perubahan_programs WHERE year = ? AND nama_biro IN (SELECT value FROM json_each(?))'
@@ -989,22 +1027,22 @@ perubahanRoutes.post('/setda/generate', async (c) => {
     'SELECT * FROM renja_perubahan_references WHERE active = 1 ORDER BY priority ASC'
   ).all();
   const refContext = (refs as any[]).map(r => `- ${r.title} (Tipe: ${r.document_type}, Prioritas: ${r.priority})`).join('\n');
-  const matrixText = buildMatrixText(programs as any[]);
+  const tables = buildSetdaTables(programs as any[]);
+  const promptMatrix = tables.matriks.split('\n').slice(0, 120).join('\n');
 
   // 4) Kompilasi section per BAB (paralel, best-effort); section 3.4 matriks diisi langsung
   const compiledContent: Record<string, string> = {};
   const sectionStatus: Record<string, string> = {};
   const digests = biroData.map(b => ({ nama_biro: b.sub.nama_biro, status: b.sub.status, final: b.sub.status === 'final', version: b.version.version_number, digest: b.digest }));
-  if (matrixText) {
-    compiledContent['3.4'] = `Matriks Renja Perubahan Setda Tahun ${year} (kompilasi ${biroData.length} biro):\n\n${matrixText}`;
+  if (tables.matriks) {
+    compiledContent['3.4'] = `Tabel 3.4 — Matriks Renja Perubahan Setda Tahun ${year} (kompilasi ${biroData.length} biro):\n\n${tables.matriks}`;
     sectionStatus['3.4'] = 'otomatis';
   }
   const babResults = await Promise.allSettled([1, 2, 3, 4].map(async (bab) => {
     // 3.4 matriks diisi langsung dari hasil agregasi, tidak perlu dikompilasi AI
     const tpl = SETDA_TEMPLATE.filter(t => Number(t.chapter) === bab && t.sub !== '3.4');
     // Batasi matriks pada prompt BAB III agar respons AI tidak terpotong (hindari salin tabel verbatim)
-    const promptMatrix = bab === 3 ? matrixText.split('\n').slice(0, 120).join('\n') : '';
-    const r = await compileBAB(provider, { year, bab, template: tpl, digests, matrixText: promptMatrix, refContext, finalCount: finalSubs.length, compiledCount: biroData.length });
+    const r = await compileBAB(provider, { year, bab, template: tpl, digests, matrixText: bab === 3 ? promptMatrix : '', refContext, finalCount: finalSubs.length, compiledCount: biroData.length });
     return { bab, r };
   }));
   for (const br of babResults) {
@@ -1014,6 +1052,13 @@ perubahanRoutes.post('/setda/generate', async (c) => {
       if (br.value.r.sections[t.sub]) { compiledContent[t.sub] = br.value.r.sections[t.sub]; sectionStatus[t.sub] = 'otomatis'; }
       else sectionStatus[t.sub] = 'perlu_review';
     }
+  }
+  // Tambahkan tabel Permendagri (Tabel 3.1 & 3.3) ke section BAB III
+  if (compiledContent['3.1'] && tables.rekapProgram) {
+    compiledContent['3.1'] += `\n\nTabel 3.1 — Rekapitulasi Rencana Program dan Kegiatan per Bidang Urusan (T-C.29 Permendagri 86/2017):\n${tables.rekapProgram}`;
+  }
+  if (compiledContent['3.3'] && tables.rekapKegiatan) {
+    compiledContent['3.3'] += `\n\nTabel 3.3 — Rekapitulasi Pagu Awal, Pagu Perubahan dan Selisih per Program/Kegiatan (T-C.33 Permendagri 86/2017):\n${tables.rekapKegiatan}`;
   }
 
   // 5) Simpan / perbarui setda
