@@ -50,7 +50,7 @@ function App() {
 
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
-                <Route path="/" element={<Dashboard />} />
+                <Route path="/" element={<Navigate to="/renja" replace />} />
                 <Route path="/renja" element={<RenjaMurni />} />
                 <Route path="/pemeriksaan" element={<Pemeriksaan />} />
                 <Route path="/status-pemeriksaan" element={<Pemeriksaan />} />

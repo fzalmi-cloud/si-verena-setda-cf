@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, ClipboardCheck, FileSearch, History,
-  Users, BookOpen, Shield, ChevronLeft, ChevronRight, LogOut, FileUp, BarChart2, GitCompare, Database, FolderOpen, Eye, X,
-  Sparkles, ClipboardList, CheckSquare, PenTool, Clock, Download, ChevronDown, ChevronUp,
+  Users, BookOpen, Shield, ChevronLeft, ChevronRight, LogOut, Eye, X,
+  Sparkles, ClipboardList, CheckSquare, PenTool, FileSearch, Clock, Download, ChevronDown, ChevronUp,
   CalendarRange, UserCircle, GitBranch, BookMarked
 } from 'lucide-react';
 
@@ -16,10 +15,6 @@ import { usePreviewRole } from '@/lib/PreviewRoleContext';
 const BIRO_ROLES = ['biro_pengusul', 'biro_pemerintahan', 'biro_kesra', 'biro_hukum', 'biro_adpem', 'biro_perekonomian', 'biro_pbj', 'biro_adpim', 'biro_umum', 'biro_organisasi'];
 // Roles verifikator
 const VERIF_ROLES = ['verifikator', 'verifikator_1', 'verifikator_2', 'verifikator_3'];
-// Kabag — akses hampir penuh (di bawah admin)
-const KABAG_ROLE = ['kabag'];
-// Semua role
-const ALL_ROLES = ['admin', 'kabag', 'reviewer', 'pimpinan', ...BIRO_ROLES, ...VERIF_ROLES];
 
 const PENYUSUNAN_ITEMS = [
   { label: 'Dashboard Penyusunan', icon: Sparkles, path: '/penyusunan' },
@@ -31,17 +26,12 @@ const PENYUSUNAN_ITEMS = [
   { label: 'Export Dokumen', icon: Download, path: '/penyusunan/export' },
 ];
 
+// Menu utama — halaman-halaman yang sudah menjadi tab di "Renja (Murni/Awal)"
+// (Dashboard, Upload Renja, Upload Revisi, Pemeriksaan, Hasil Verifikasi,
+//  Riwayat Revisi, Semua Dokumen, File Referensi AI) TIDAK lagi tampil terpisah.
 const navItems = [
-  { label: 'Dashboard', icon: LayoutDashboard, path: '/', roles: ALL_ROLES },
-  { label: 'Upload Renja', icon: FileUp, path: '/upload-renja', roles: ['admin', 'kabag', ...BIRO_ROLES] },
-  { label: 'Upload Revisi', icon: GitCompare, path: '/upload-revisi', roles: ['admin', 'kabag', ...BIRO_ROLES] },
-  { label: 'Pemeriksaan', icon: ClipboardCheck, path: '/pemeriksaan', roles: ['admin', 'kabag', ...VERIF_ROLES, 'pimpinan', ...BIRO_ROLES] },
   { label: 'Renja (Murni/Awal)', icon: BookMarked, path: '/renja', roles: ['admin', 'kabag', ...VERIF_ROLES, 'pimpinan', ...BIRO_ROLES] },
   { label: 'Renja Perubahan', icon: GitBranch, path: '/perubahan', roles: ['admin', 'kabag', ...VERIF_ROLES, 'pimpinan', ...BIRO_ROLES], notif: true },
-  { label: 'Hasil Verifikasi', icon: FileSearch, path: '/hasil', roles: ['admin', 'kabag', ...VERIF_ROLES, 'pimpinan', ...BIRO_ROLES] },
-  { label: 'Riwayat Revisi', icon: History, path: '/riwayat', roles: ['admin', 'kabag', ...VERIF_ROLES, 'pimpinan', ...BIRO_ROLES] },
-  { label: 'Semua Dokumen', icon: FolderOpen, path: '/dokumen-diunggah', roles: ['admin', 'kabag', ...VERIF_ROLES] },
-  { label: 'File Referensi AI', icon: Database, path: '/file-referensi', roles: ['admin', 'kabag', ...VERIF_ROLES] },
   { label: 'Master Biro', icon: BookOpen, path: '/master-biro', roles: ['admin', 'kabag'] },
   { label: 'Periode Renja', icon: CalendarRange, path: '/periode', roles: ['admin', 'kabag'] },
   { label: 'Kelola Pengguna', icon: Users, path: '/pengguna', roles: ['admin', 'kabag'] },
