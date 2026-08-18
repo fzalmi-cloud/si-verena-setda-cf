@@ -17,7 +17,7 @@ const STATUS_CFG = {
   final: { label: 'Final', cls: 'bg-emerald-200 text-emerald-900 font-bold' },
 };
 
-export default function RiwayatDraft() {
+export default function RiwayatDraft({ onOpenDraft, onNavigate }) {
   const qc = useQueryClient();
   const [compareIds, setCompareIds] = useState([]);
 
@@ -51,9 +51,13 @@ export default function RiwayatDraft() {
           <h1 className="text-2xl font-display font-bold">Riwayat Draft Renja Setda</h1>
           <p className="text-sm text-muted-foreground mt-1">{draftList.length} draft tersimpan</p>
         </div>
-        <Link to="/penyusunan/generate">
-          <Button className="gap-2"><Plus className="w-4 h-4" /> Buat Draft Baru</Button>
-        </Link>
+        {onNavigate ? (
+          <Button className="gap-2" onClick={() => onNavigate('/penyusunan/generate')}><Plus className="w-4 h-4" /> Buat Draft Baru</Button>
+        ) : (
+          <Link to="/penyusunan/generate">
+            <Button className="gap-2"><Plus className="w-4 h-4" /> Buat Draft Baru</Button>
+          </Link>
+        )}
       </div>
 
       {compareIds.length === 2 && (
@@ -69,9 +73,13 @@ export default function RiwayatDraft() {
       {draftList.length === 0 ? (
         <div className="text-center py-20 bg-card border border-border rounded-xl">
           <p className="text-muted-foreground text-sm">Belum ada draft yang dibuat</p>
-          <Link to="/penyusunan/generate" className="mt-4 inline-block">
-            <Button size="sm" className="mt-3">Buat Draft Pertama</Button>
-          </Link>
+          {onNavigate ? (
+            <Button size="sm" className="mt-3" onClick={() => onNavigate('/penyusunan/generate')}>Buat Draft Pertama</Button>
+          ) : (
+            <Link to="/penyusunan/generate" className="mt-4 inline-block">
+              <Button size="sm" className="mt-3">Buat Draft Pertama</Button>
+            </Link>
+          )}
         </div>
       ) : (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -116,9 +124,13 @@ export default function RiwayatDraft() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-1">
-                          <Link to={`/penyusunan/editor/${draft.id}`}>
-                            <Button size="sm" variant="ghost" className="h-7 text-xs gap-1"><Eye className="w-3 h-3" /> Buka</Button>
-                          </Link>
+                          {onOpenDraft ? (
+                            <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => onOpenDraft(draft.id)}><Eye className="w-3 h-3" /> Buka</Button>
+                          ) : (
+                            <Link to={`/penyusunan/editor/${draft.id}`}>
+                              <Button size="sm" variant="ghost" className="h-7 text-xs gap-1"><Eye className="w-3 h-3" /> Buka</Button>
+                            </Link>
+                          )}
                           {draft.status !== 'final' && (
                             <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:bg-destructive/10" onClick={() => deleteMutation.mutate(draft.id)}>
                               <Trash2 className="w-3 h-3" />

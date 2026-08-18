@@ -40,7 +40,12 @@ function StatCard({ label, value, sub, icon: IconComp, color }) {
   );
 }
 
-export default function DashboardPenyusunan() {
+export default function DashboardPenyusunan({ onNavigate }) {
+  // Bila dipakai di dalam tab (onNavigate ada), link menjadi tombol yang
+  // berpindah sub-tab; bila standalone tetap memakai Link router biasa.
+  const Nav = ({ to, className, children }) => onNavigate
+    ? <button type="button" className={className} onClick={() => onNavigate(to)}>{children}</button>
+    : <Link to={to} className={className}>{children}</Link>;
   const { data: dokumenResp } = useQuery({
     queryKey: ['dok-penyusunan', TAHUN],
     queryFn: () => api.list("dokumenrenja", { limit: 200 }),
@@ -123,12 +128,12 @@ export default function DashboardPenyusunan() {
             { label: '5. Export', path: '/penyusunan/export', done: latestDraft?.status === 'final' },
           ].map((step, i, arr) => (
             <React.Fragment key={step.label}>
-              <Link to={step.path}>
+              <Nav to={step.path}>
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all hover:shadow-sm ${step.done ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'}`}>
                   {step.done && <CheckCircle2 className="w-3.5 h-3.5" />}
                   {step.label}
                 </div>
-              </Link>
+              </Nav>
               {i < arr.length - 1 && <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />}
             </React.Fragment>
           ))}
@@ -191,16 +196,16 @@ export default function DashboardPenyusunan() {
         <div className="bg-card border border-border rounded-xl p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold">Draft Terbaru</h3>
-            <Link to="/penyusunan/riwayat" className="text-xs text-primary hover:underline">Lihat semua</Link>
+            <Nav to="/penyusunan/riwayat" className="text-xs text-primary hover:underline">Lihat semua</Nav>
           </div>
           <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
             <div>
               <p className="text-sm font-medium">{latestDraft.judul}</p>
               <p className="text-xs text-muted-foreground mt-0.5">v{latestDraft.versi} · oleh {latestDraft.generated_by} · {latestDraft.jumlah_biro} biro</p>
             </div>
-            <Link to={`/penyusunan/editor/${latestDraft.id}`}>
+            <Nav to={`/penyusunan/editor/${latestDraft.id}`}>
               <Button size="sm" className="gap-1"><ArrowRight className="w-3.5 h-3.5" /> Buka Editor</Button>
-            </Link>
+            </Nav>
           </div>
         </div>
       )}
@@ -213,12 +218,12 @@ export default function DashboardPenyusunan() {
           { label: 'Generate Draft AI', path: '/penyusunan/generate', icon: Sparkles, color: 'border-purple-200 text-purple-700 hover:bg-purple-50' },
           { label: 'Riwayat Draft', path: '/penyusunan/riwayat', icon: FileText, color: 'border-slate-200 text-slate-700 hover:bg-slate-50' },
         ].map(({ label, path, icon: Icon, color }) => (
-          <Link key={path} to={path}>
+          <Nav key={path} to={path} className="w-full">
             <button className={`w-full flex flex-col items-center gap-2 p-4 rounded-xl border text-sm font-medium transition-all ${color}`}>
               <Icon className="w-5 h-5" />
               {label}
             </button>
-          </Link>
+          </Nav>
         ))}
       </div>
     </div>

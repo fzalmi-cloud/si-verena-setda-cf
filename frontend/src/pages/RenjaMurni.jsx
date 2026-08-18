@@ -11,7 +11,7 @@ import HasilVerifikasi from '@/pages/HasilVerifikasi';
 import RiwayatRevisi from '@/pages/RiwayatRevisi';
 import DokumenDiunggah from '@/pages/DokumenDiunggah';
 import FileReferensi from '@/pages/FileReferensi';
-import DashboardPenyusunan from '@/pages/penyusunan/DashboardPenyusunan';
+import PenyusunanTabs from '@/pages/penyusunan/PenyusunanTabs';
 
 // Role biro pengusul (tab admin disembunyikan untuk mereka)
 const BIRO_ROLES = ['biro_pengusul', 'biro_pemerintahan', 'biro_kesra', 'biro_hukum', 'biro_adpem', 'biro_perekonomian', 'biro_pbj', 'biro_adpim', 'biro_umum', 'biro_organisasi'];
@@ -29,7 +29,7 @@ const BASE_TABS = [
 const ADMIN_TABS = [
   { value: 'semua-dokumen', label: 'Semua Dokumen', component: DokumenDiunggah },
   { value: 'file-referensi', label: 'File Referensi AI', component: FileReferensi },
-  { value: 'penyusunan', label: 'Penyusunan Renja Setda', component: DashboardPenyusunan },
+  { value: 'penyusunan', label: 'Penyusunan Renja Setda', component: PenyusunanTabs },
 ];
 
 export default function RenjaMurni() {

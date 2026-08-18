@@ -71,7 +71,7 @@ ATURAN PENTING:
 Hasilkan narasi lengkap untuk BAB ${nomor} - ${judul}:`;
 }
 
-export default function GenerateDraft() {
+export default function GenerateDraft({ onOpenDraft }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -200,7 +200,8 @@ export default function GenerateDraft() {
 
       qc.invalidateQueries({ queryKey: ['draft-renja-list'] });
       toast.success('Draft Renja Setda berhasil digenerate!');
-      navigate(`/penyusunan/editor/${draft.id}`);
+      if (onOpenDraft) onOpenDraft(draft.id);
+      else navigate(`/penyusunan/editor/${draft.id}`);
     } catch (err) {
       toast.error('Gagal generate draft: ' + err.message);
     } finally {

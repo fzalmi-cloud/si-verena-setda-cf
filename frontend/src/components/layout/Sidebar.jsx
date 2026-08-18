@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Users, BookOpen, Shield, ChevronLeft, ChevronRight, LogOut, Eye, X,
-  Sparkles, ClipboardList, CheckSquare, PenTool, FileSearch, Clock, Download, ChevronDown, ChevronUp,
   CalendarRange, UserCircle, GitBranch, BookMarked
 } from 'lucide-react';
 
@@ -15,16 +14,6 @@ import { usePreviewRole } from '@/lib/PreviewRoleContext';
 const BIRO_ROLES = ['biro_pengusul', 'biro_pemerintahan', 'biro_kesra', 'biro_hukum', 'biro_adpem', 'biro_perekonomian', 'biro_pbj', 'biro_adpim', 'biro_umum', 'biro_organisasi'];
 // Roles verifikator
 const VERIF_ROLES = ['verifikator', 'verifikator_1', 'verifikator_2', 'verifikator_3'];
-
-const PENYUSUNAN_ITEMS = [
-  { label: 'Dashboard Penyusunan', icon: Sparkles, path: '/penyusunan' },
-  { label: 'Kompilasi Renja Biro', icon: ClipboardList, path: '/penyusunan/kompilasi' },
-  { label: 'Validasi Data Sumber', icon: CheckSquare, path: '/penyusunan/validasi' },
-  { label: 'Generate Draft', icon: PenTool, path: '/penyusunan/generate' },
-  { label: 'Editor Draft', icon: FileSearch, path: '/penyusunan/riwayat' },
-  { label: 'Riwayat Draft', icon: Clock, path: '/penyusunan/riwayat' },
-  { label: 'Export Dokumen', icon: Download, path: '/penyusunan/export' },
-];
 
 // Menu utama — halaman-halaman yang sudah menjadi tab di "Renja (Murni/Awal)"
 // (Dashboard, Upload Renja, Upload Revisi, Pemeriksaan, Hasil Verifikasi,
@@ -77,9 +66,6 @@ export default function Sidebar({ collapsed, setCollapsed, user, realUser }) {
     return () => { active = false; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userRole]);
-  const [showPenyusunan, setShowPenyusunan] = useState(() =>
-    location.pathname.startsWith('/penyusunan')
-  );
   const isAdminReal = realUser?.role === 'admin' || realUser?.role === 'kabag' || realUser?.role === 'reviewer';
 
   const filteredNav = navItems.filter(item => item.roles.includes(navRole));
@@ -127,51 +113,6 @@ export default function Sidebar({ collapsed, setCollapsed, user, realUser }) {
             </Link>
           );
         })}
-
-        {/* Sub-menu Penyusunan Renja Setda — hanya admin/kabag/verifikator */}
-        {['admin', 'kabag', ...VERIF_ROLES].includes(navRole) && (
-          <div>
-            <button
-              onClick={() => setShowPenyusunan(v => !v)}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200",
-                location.pathname.startsWith('/penyusunan')
-                  ? "bg-sidebar-accent text-sidebar-primary font-semibold"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-              )}
-            >
-              <Sparkles className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && (
-                <>
-                  <span className="flex-1 text-left">Penyusunan Renja</span>
-                  {showPenyusunan ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                </>
-              )}
-            </button>
-            {showPenyusunan && !collapsed && (
-              <div className="ml-3 mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
-                {PENYUSUNAN_ITEMS.map(item => {
-                  const isActive = location.pathname === item.path;
-                  return (
-                    <Link
-                      key={item.path + item.label}
-                      to={item.path}
-                      className={cn(
-                        "flex items-center gap-2 px-2 py-2 rounded-lg text-xs transition-all",
-                        isActive
-                          ? "bg-sidebar-accent text-sidebar-primary font-semibold"
-                          : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
-                      )}
-                    >
-                      <item.icon className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
       </nav>
 
       {/* User info & collapse */}

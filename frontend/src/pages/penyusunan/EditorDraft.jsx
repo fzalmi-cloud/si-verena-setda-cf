@@ -30,8 +30,9 @@ const STATUS_DRAFT_CFG = {
   final: { label: 'Final', cls: 'bg-emerald-200 text-emerald-800 font-bold' },
 };
 
-export default function EditorDraft() {
-  const { id } = useParams();
+export default function EditorDraft({ draftId: propDraftId, onBack }) {
+  const { id: paramId } = useParams();
+  const id = propDraftId || paramId;
   const { user } = useAuth();
   const qc = useQueryClient();
   const [activeBabId, setActiveBabId] = useState(null);
@@ -161,9 +162,13 @@ export default function EditorDraft() {
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-card flex-shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <Link to="/penyusunan/riwayat">
-            <Button variant="ghost" size="icon" className="h-8 w-8"><ChevronLeft className="w-4 h-4" /></Button>
-          </Link>
+          {onBack ? (
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack} title="Kembali ke Riwayat Draft"><ChevronLeft className="w-4 h-4" /></Button>
+          ) : (
+            <Link to="/penyusunan/riwayat">
+              <Button variant="ghost" size="icon" className="h-8 w-8"><ChevronLeft className="w-4 h-4" /></Button>
+            </Link>
+          )}
           <div className="min-w-0">
             <h1 className="text-sm font-bold truncate">{draft.judul}</h1>
             <div className="flex items-center gap-2 mt-0.5">
