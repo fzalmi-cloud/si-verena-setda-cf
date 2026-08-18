@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Bindings } from '../index';
 import { getLLMProvider } from '../llm/provider';
 import { extractTextFromR2 } from '../storage/extract';
+import { renderReturnedEmail } from '../mailTemplates';
 
 // ══════════════════════════════════════════════════════════════════
 // MODUL RENJA PERUBAHAN — SI-VERENA
@@ -290,15 +291,15 @@ perubahanRoutes.post('/submissions/:id/return', async (c) => {
       mail = await sendMail(c.env, {
         to: emails,
         subject: `[SI-VERENA] Dokumen Renja Perubahan ${sub.nama_biro} dikembalikan untuk perbaikan`,
-        html: `
-          <div style="font-family:Arial,sans-serif;max-width:600px">
-            <h2 style="color:#c2410c">Dokumen Dikembalikan untuk Perbaikan</h2>
-            <p>Dokumen <strong>Renja Perubahan ${sub.nama_biro} Tahun ${sub.year}</strong> (V${sub.current_version}) dikembalikan oleh Verifikator <strong>${verifName}</strong>.</p>
-            <p><strong>Catatan Verifikator:</strong></p>
-            <blockquote style="border-left:4px solid #f97316;padding:8px 12px;background:#fff7ed;color:#7c2d12">${note.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</blockquote>
-            <p>Silakan perbaiki dokumen sesuai catatan, lalu unggah <strong>versi baru (V${(sub.current_version || 0) + 1})</strong> pada aplikasi SI-VERENA di <strong>https://siverena.id/perubahan</strong> (tab Upload Renja Perubahan Biro).</p>
-            <p style="color:#6b7280;font-size:12px">Ini adalah email otomatis dari sistem SI-VERENA SETDA.</p>
-          </div>`,
+        html: renderReturnedEmail({
+          biro: sub.nama_biro,
+          tahun: sub.year,
+          version: sub.current_version || 0,
+          nextVersion: (sub.current_version || 0) + 1,
+          verifikator: verifName,
+          note,
+          link: 'https://siverena.id/perubahan',
+        }),
       });
       await logAudit(c, 'email_sent', 'rp_submission', id, `Email pengembalian dikirim ke ${emails.join(', ')} — ${mail.ok ? 'OK' : 'GAGAL: ' + (mail.error || '')}`);
     } else {
