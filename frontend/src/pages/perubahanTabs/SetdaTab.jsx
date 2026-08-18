@@ -218,7 +218,7 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
     setExporting(type);
     try {
       if (type === 'docx') {
-        const { Document, Packer, Paragraph, HeadingLevel, Header, Footer, PageNumber, AlignmentType, PageBreak, Table, TableRow, TableCell, WidthType } = await import('docx');
+        const { Document, Packer, Paragraph, HeadingLevel, Header, Footer, PageNumber, AlignmentType, PageBreak, Table, TableRow, TableCell, WidthType, TextRun } = await import('docx');
         const { saveAs } = await import('file-saver');
         const children = [];
         children.push(new Paragraph({ text: 'RENJA PERUBAHAN SEKRETARIAT DAERAH PROVINSI SUMATERA BARAT', heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER }));
@@ -263,7 +263,7 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
         const doc = new Document({
           sections: [{
             headers: { default: new Header({ children: [new Paragraph({ text: 'RENJA PERUBAHAN SEKRETARIAT DAERAH', alignment: AlignmentType.RIGHT })] }) },
-            footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new PageNumber()] })] }) },
+            footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ children: [PageNumber.CURRENT] })] })] }) },
             children,
           }],
         });
