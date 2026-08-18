@@ -22,6 +22,10 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     chunkSizeWarningLimit: 3000,
+    // Fix: tabrakan nama minifikasi esbuild pada bundle besar (contoh: docx PageNumber
+    // menjadi 'Ge' yang bentrok dengan fungsi jszip -> 'Ge is not a constructor').
+    // Minifikasi dimatikan total agar tidak ada collision nama kelas saat runtime.
+    minify: false,
     rollupOptions: {
       output: {
         manualChunks: {
