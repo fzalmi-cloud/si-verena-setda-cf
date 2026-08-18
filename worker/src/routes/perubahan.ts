@@ -1210,9 +1210,20 @@ perubahanRoutes.get('/setda/:id/matriks', async (c) => {
   ).bind(setda.year).all();
   const biroStatus: Record<string, any> = {};
   (subsYear as any[]).forEach(s => { biroStatus[s.nama_biro] = { status: s.status, kritis: !!s.has_critical_open }; });
+  // Biro yang belum "sesuai acuan": ada temuan kritis/mayor terbuka pada keselarasan/sistematika
+  const { results: findingsKeselarasan } = await c.env.DB.prepare(
+    "SELECT DISTINCT nama_biro FROM renja_perubahan_findings WHERE year = ? AND status IN ('terbuka','diduga_diperbaiki','dibuka_kembali') AND severity IN ('kritis','mayor') AND category IN ('keselarasan_rkpd','sistematika_permendagri')"
+  ).bind(setda.year).all();
+  const belumSesuaiAcuan = new Set((findingsKeselarasan as any[]).map(f => f.nama_biro));
   const { results: programs } = await c.env.DB.prepare(
     'SELECT * FROM renja_perubahan_programs WHERE year = ? AND nama_biro IN (SELECT value FROM json_each(?))'
   ).bind(setda.year, JSON.stringify(biroNames)).all();
+  // Keputusan konflik terdahulu (Fase 2: benar-benar diterapkan pada angka matriks)
+  const { results: decisions } = await c.env.DB.prepare(
+    'SELECT * FROM renja_perubahan_conflicts WHERE setda_id = ?'
+  ).bind(id).all();
+  const decisionMap = new Map<string, any>();
+  (decisions as any[]).forEach(d => { decisionMap.set(`${d.kode}|${d.field}`, d); });
 
   // Agregasi per kode program+kegiatan, akumulasi pagu per biro, deteksi konflik
   const map = new Map<string, any>();
@@ -1220,8 +1231,9 @@ perubahanRoutes.get('/setda/:id/matriks', async (c) => {
   let totalPaguAwal = 0, totalPaguPerubahan = 0;
   for (const pr of (programs as any[])) {
     const key = `${pr.program_code || '?'}|${pr.activity_code || '?'}|${pr.subactivity_code || '?'}`;
-    const cur: any = map.get(key) || { ...pr, biro: [], pagu_awal: 0, pagu_perubahan: 0 };
+    const cur: any = map.get(key) || { ...pr, biro: [], sumber: [], pagu_awal: 0, pagu_perubahan: 0 };
     cur.biro = [...new Set([...(cur.biro || []), pr.nama_biro])];
+    cur.sumber = [...new Set([...(cur.sumber || []), `${pr.nama_biro} (V${pr.version_number})`])];
     cur.pagu_awal += Number(pr.pagu_awal) || 0;
     cur.pagu_perubahan += Number(pr.pagu_perubahan) || 0;
     map.set(key, cur);
@@ -1232,15 +1244,33 @@ perubahanRoutes.get('/setda/:id/matriks', async (c) => {
     totalPaguAwal += Number(pr.pagu_awal) || 0;
     totalPaguPerubahan += Number(pr.pagu_perubahan) || 0;
   }
-  const rows = [...map.values()].map((r: any) => ({
-    kode: `${r.program_code || ''}.${r.activity_code || ''}.${r.subactivity_code || ''}`,
-    program: r.program_name || '', kegiatan: r.activity_name || '', subkegiatan: r.subactivity_name || '',
-    indikator: r.indicator || '', target_awal: r.target_awal || '', target_perubahan: r.target_perubahan || '',
-    satuan: r.satuan || '', pagu_awal: r.pagu_awal, pagu_perubahan: r.pagu_perubahan,
-    selisih: (Number(r.pagu_perubahan) || 0) - (Number(r.pagu_awal) || 0),
-    biro: (r.biro || []).join(', '),
-    duplikat: (r.biro || []).length > 1,
-  })).sort((a, b) => a.kode.localeCompare(b.kode));
+  const rows = [...map.values()].map((r: any) => {
+    // Terapkan keputusan konflik (pagu) bila ada
+    const paKey = `${r.program_code || '?'}.${r.activity_code || '?'}`;
+    let paguAwal = r.pagu_awal, paguPerubahan = r.pagu_perubahan, keputusan: any = null;
+    const decPerubahan = decisionMap.get(`${paKey}|pagu_perubahan`);
+    if (decPerubahan) {
+      keputusan = { field: 'pagu_perubahan', pilih: decPerubahan.keputusan };
+      paguPerubahan = decPerubahan.keputusan === 'acuan' ? (Number(decPerubahan.nilai_acuan) || 0) : (Number(decPerubahan.nilai_biro) || 0);
+    }
+    const decAwal = decisionMap.get(`${paKey}|pagu_awal`);
+    if (decAwal) {
+      keputusan = { field: 'pagu_awal', pilih: decAwal.keputusan };
+      paguAwal = decAwal.keputusan === 'acuan' ? (Number(decAwal.nilai_acuan) || 0) : (Number(decAwal.nilai_biro) || 0);
+    }
+    const biros = (r.biro || []) as string[];
+    return {
+      kode: `${r.program_code || ''}.${r.activity_code || ''}.${r.subactivity_code || ''}`,
+      program: r.program_name || '', kegiatan: r.activity_name || '', subkegiatan: r.subactivity_name || '',
+      indikator: r.indicator || '', target_awal: r.target_awal || '', target_perubahan: r.target_perubahan || '',
+      satuan: r.satuan || '', pagu_awal: paguAwal, pagu_perubahan: paguPerubahan,
+      selisih: (Number(paguPerubahan) || 0) - (Number(paguAwal) || 0),
+      biro: biros.join(', '), sumber: (r.sumber || []).join(', '),
+      duplikat: biros.length > 1,
+      keputusan,
+      sesuai_acuan: !biros.some(b => belumSesuaiAcuan.has(b)),
+    };
+  }).sort((a, b) => a.kode.localeCompare(b.kode));
 
   // Konflik: kode sama tapi pagu berbeda antar biro (double counting / beda nilai)
   const conflicts: any[] = [];
@@ -1251,15 +1281,34 @@ perubahanRoutes.get('/setda/:id/matriks', async (c) => {
     byKode.get(key)!.push(pr);
   }
   for (const [kode, items] of byKode) {
-    const pagus = new Set(items.map((i: any) => Number(i.pagu_perubahan) || 0));
-    if (pagus.size > 1) {
+    const nama = items[0].activity_name || items[0].program_name || kode;
+    const paguP = new Set(items.map(i => Number(i.pagu_perubahan) || 0));
+    const paguA = new Set(items.map(i => Number(i.pagu_awal) || 0));
+    const namaSet = new Set(items.map(i => `${i.program_name}|${i.activity_name}`));
+    const targetSet = new Set(items.map(i => `${i.target_awal}|${i.target_perubahan}`));
+    if (paguP.size > 1) {
       const first = items[0];
-      const others = items.slice(1).find((i: any) => (Number(i.pagu_perubahan) || 0) !== (Number(first.pagu_perubahan) || 0));
-      conflicts.push({
-        kode, nama: first.activity_name || first.program_name || kode, field: 'pagu_perubahan',
+      const others = items.slice(1).find(i => (Number(i.pagu_perubahan) || 0) !== (Number(first.pagu_perubahan) || 0));
+      conflicts.push({ kode, nama, field: 'pagu_perubahan', tipe: 'angka',
         nilai_biro: Number(first.pagu_perubahan) || 0, nilai_acuan: Number(others?.pagu_perubahan) || 0,
         nama_biro: first.nama_biro, acuan_source: others?.nama_biro || '',
-      });
+        keputusan: decisionMap.get(`${kode}|pagu_perubahan`)?.keputusan || null });
+    }
+    if (paguA.size > 1) {
+      const first = items[0];
+      const others = items.slice(1).find(i => (Number(i.pagu_awal) || 0) !== (Number(first.pagu_awal) || 0));
+      conflicts.push({ kode, nama, field: 'pagu_awal', tipe: 'angka',
+        nilai_biro: Number(first.pagu_awal) || 0, nilai_acuan: Number(others?.pagu_awal) || 0,
+        nama_biro: first.nama_biro, acuan_source: others?.nama_biro || '',
+        keputusan: decisionMap.get(`${kode}|pagu_awal`)?.keputusan || null });
+    }
+    if (namaSet.size > 1) {
+      conflicts.push({ kode, nama, field: 'nama', tipe: 'informasi', nilai_biro: 0, nilai_acuan: 0,
+        nama_biro: items[0].nama_biro, acuan_source: items[1]?.nama_biro || '', keputusan: null });
+    }
+    if (targetSet.size > 1) {
+      conflicts.push({ kode, nama, field: 'target_perubahan', tipe: 'informasi', nilai_biro: 0, nilai_acuan: 0,
+        nama_biro: items[0].nama_biro, acuan_source: items[1]?.nama_biro || '', keputusan: null });
     }
   }
 
@@ -1271,15 +1320,16 @@ perubahanRoutes.get('/setda/:id/matriks', async (c) => {
 });
 
 // POST /api/perubahan/setda/:id/resolve-conflict — keputusan verifikator atas konflik
-// POST /api/perubahan/setda/:id/resolve-conflict — keputusan verifikator atas konflik
+// (Fase 2: keputusan disimpan beserta nilai & benar-benar diterapkan di matriks)
 perubahanRoutes.post('/setda/:id/resolve-conflict', async (c) => {
   const id = c.req.param('id');
-  const { kode, pilih } = await c.req.json(); // pilih: 'biro' | 'acuan'
+  const { kode, pilih, field = 'pagu_perubahan', nilai_biro, nilai_acuan, nama } = await c.req.json(); // pilih: 'biro' | 'acuan'
   const payload = (c as any).get('jwtPayload') as any;
+  await c.env.DB.prepare('DELETE FROM renja_perubahan_conflicts WHERE setda_id = ? AND kode = ? AND field = ?').bind(id, kode || '', field).run();
   await c.env.DB.prepare(
-    `INSERT INTO renja_perubahan_conflicts (id, setda_id, kode, nama, field, keputusan, decided_by, decided_at)
-     VALUES (?, ?, ?, ?, 'pagu_perubahan', ?, ?, datetime('now'))`
-  ).bind(crypto.randomUUID(), id, kode || '', 'Konflik data', pilih, payload?.email || 'sistem').run();
-  await logAudit(c, 'resolve_conflict', 'rp_setda', id, `Konflik ${kode} diputuskan: pakai ${pilih}`);
-  return c.json({ message: `Keputusan dicatat: pakai ${pilih}` });
+    `INSERT INTO renja_perubahan_conflicts (id, setda_id, kode, nama, field, nilai_biro, nilai_acuan, keputusan, decided_by, decided_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+  ).bind(crypto.randomUUID(), id, kode || '', nama || 'Konflik data', field, Number(nilai_biro) || 0, Number(nilai_acuan) || 0, pilih, payload?.email || 'sistem').run();
+  await logAudit(c, 'resolve_conflict', 'rp_setda', id, `Konflik ${kode} (${field}) diputuskan: pakai ${pilih}`);
+  return c.json({ message: `Keputusan dicatat: pakai ${pilih === 'acuan' ? 'nilai acuan' : 'nilai biro'} (${field})` });
 });

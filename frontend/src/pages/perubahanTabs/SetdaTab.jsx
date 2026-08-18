@@ -16,6 +16,8 @@ const STATUS_LABEL = { otomatis: 'OTOMATIS', perlu_review: 'PERLU REVIEW', disus
 const STATUS_COLOR = { otomatis: 'text-emerald-600', perlu_review: 'text-amber-600', disusun: 'text-blue-600', belum_disusun: 'text-muted-foreground' };
 const statusLabel = s => STATUS_LABEL[s] || s || '—';
 const statusColor = s => STATUS_COLOR[s] || 'text-muted-foreground';
+const FIELD_LABEL = { pagu_perubahan: 'Pagu Perubahan', pagu_awal: 'Pagu Awal', nama: 'Nama', target_perubahan: 'Target Perubahan' };
+const fieldLabel = f => FIELD_LABEL[f] || f;
 
 export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif }) {
   const [tahunState, setTahunState] = useState(tahun);
@@ -70,10 +72,10 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
     } catch (err) { toast.error('Gagal ekstraksi: ' + err.message); } finally { setExtracting(false); }
   };
 
-  const resolveConflict = async (kode, pilih) => {
+  const resolveConflict = async (c, pilih) => {
     try {
-      await api.request(`/api/perubahan/setda/${selectedSetda}/resolve-conflict`, { method: 'POST', body: JSON.stringify({ kode, pilih }) });
-      toast.success(`Keputusan dicatat: pakai ${pilih}`);
+      await api.request(`/api/perubahan/setda/${selectedSetda}/resolve-conflict`, { method: 'POST', body: JSON.stringify({ kode: c.kode, pilih, field: c.field || 'pagu_perubahan', nilai_biro: c.nilai_biro, nilai_acuan: c.nilai_acuan, nama: c.nama }) });
+      toast.success(`Keputusan dicatat: pakai ${pilih === 'acuan' ? 'nilai acuan' : 'nilai biro'}`);
       await loadMatriks();
     } catch (err) { toast.error('Gagal: ' + err.message); }
   };
@@ -406,12 +408,24 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
                     {matriks.conflicts.map((c, i) => (
                       <div key={i} className="flex items-center justify-between flex-wrap gap-2 p-2 rounded-lg border border-red-200 bg-white text-xs">
                         <div>
-                          <p className="font-medium">{c.nama} ({c.kode})</p>
-                          <p className="text-muted-foreground">Biro: Rp {new Intl.NumberFormat('id-ID').format(c.nilai_biro)} · {c.nama_biro} vs Rp {new Intl.NumberFormat('id-ID').format(c.nilai_acuan)} · {c.acuan_source || 'sumber lain'}</p>
+                          <p className="font-medium">{c.nama} ({c.kode}) <span className="text-muted-foreground">— {fieldLabel(c.field)}</span></p>
+                          {c.tipe === 'informasi' ? (
+                            <p className="text-muted-foreground">Perbedaan {fieldLabel(c.field).toLowerCase()} antar biro: {c.nama_biro} vs {c.acuan_source || 'biro lain'} (informasi)</p>
+                          ) : (
+                            <p className="text-muted-foreground">Biro: Rp {new Intl.NumberFormat('id-ID').format(c.nilai_biro)} · {c.nama_biro} vs Rp {new Intl.NumberFormat('id-ID').format(c.nilai_acuan)} · {c.acuan_source || 'sumber lain'}</p>
+                          )}
                         </div>
                         <div className="flex items-center gap-1">
-                          <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => resolveConflict(c.kode, 'biro')}>Pakai Nilai Biro</Button>
-                          <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => resolveConflict(c.kode, 'acuan')}>Pakai Nilai Acuan</Button>
+                          {c.keputusan ? (
+                            <Badge className="text-[10px] bg-emerald-100 text-emerald-800 border-emerald-200">✓ Diputuskan: pakai {c.keputusan === 'acuan' ? 'nilai acuan' : 'nilai biro'}</Badge>
+                          ) : c.tipe === 'angka' ? (
+                            <>
+                              <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => resolveConflict(c, 'biro')}>Pakai Nilai Biro</Button>
+                              <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => resolveConflict(c, 'acuan')}>Pakai Nilai Acuan</Button>
+                            </>
+                          ) : (
+                            <span className="text-[9px] text-muted-foreground">informasi — tidak perlu diputuskan</span>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -454,6 +468,13 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
                             if (bs.length) return <span className="block text-[9px] text-emerald-600 mt-0.5">✓ semua final</span>;
                             return null;
                           })()}
+                          {r.sumber && <span className="block text-[9px] text-muted-foreground mt-0.5">Sumber: {r.sumber}</span>}
+                          {r.sesuai_acuan !== undefined && (
+                            <span className={`block text-[9px] mt-0.5 ${r.sesuai_acuan ? 'text-emerald-600' : 'text-amber-600'}`}>
+                              {r.sesuai_acuan ? '✓ sesuai dokumen acuan' : '⚠ belum sesuai dokumen acuan'}
+                            </span>
+                          )}
+                          {r.keputusan && <span className="block text-[9px] text-blue-600 mt-0.5">Keputusan: pakai {r.keputusan.pilih === 'acuan' ? 'nilai acuan' : 'nilai biro'} ({fieldLabel(r.keputusan.field)})</span>}
                         </td>
                       </tr>
                     ))}
