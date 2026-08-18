@@ -1106,8 +1106,33 @@ Hasilkan temuan JSON (hanya masalah nyata):
     hasil = parsed?.hasil || [];
   } catch { hasil = []; }
 
-  await logAudit(c, 'pemeriksaan_setda', 'rp_setda', id, `Pemeriksaan Renja Perubahan Setda: ${hasil.length} temuan`);
+  // Simpan temuan (Fase 4) — tabel dibuat otomatis bila belum ada
+  await c.env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS renja_perubahan_setda_findings (
+      id TEXT PRIMARY KEY, setda_id TEXT, chapter TEXT, item TEXT, description TEXT,
+      recommendation TEXT, severity TEXT DEFAULT 'minor', status TEXT DEFAULT 'terbuka',
+      created_at TEXT DEFAULT (datetime('now'))
+    )`
+  ).run();
+  await c.env.DB.prepare('DELETE FROM renja_perubahan_setda_findings WHERE setda_id = ?').bind(id).run();
+  for (const f of hasil) {
+    await c.env.DB.prepare(
+      `INSERT INTO renja_perubahan_setda_findings (id, setda_id, chapter, item, description, recommendation, severity)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).bind(crypto.randomUUID(), id, f.chapter || '', f.item || '', f.description || '', f.recommendation || '', ['kritis','mayor','minor','informasi'].includes(f.severity) ? f.severity : 'minor').run();
+  }
+
+  await logAudit(c, 'pemeriksaan_setda', 'rp_setda', id, `Pemeriksaan Renja Perubahan Setda: ${hasil.length} temuan (tersimpan)`);
   return c.json({ message: `Pemeriksaan selesai (${hasil.length} temuan)`, findings: hasil });
+});
+
+// GET /api/perubahan/setda/:id/findings — daftar temuan pemeriksaan draft Setda (Fase 4)
+perubahanRoutes.get('/setda/:id/findings', async (c) => {
+  const id = c.req.param('id');
+  const { results } = await c.env.DB.prepare(
+    'SELECT * FROM renja_perubahan_setda_findings WHERE setda_id = ? ORDER BY created_at DESC'
+  ).bind(id).all();
+  return c.json({ data: results });
 });
 
 perubahanRoutes.post('/setda/:id/approve', async (c) => {

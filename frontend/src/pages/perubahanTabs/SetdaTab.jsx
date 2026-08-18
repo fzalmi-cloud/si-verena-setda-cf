@@ -40,6 +40,14 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
   const [matriksLoading, setMatriksLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [filterMatriks, setFilterMatriks] = useState('semua');
+  const [findings, setFindings] = useState([]);
+
+  useEffect(() => {
+    if (!selectedSetda) { setFindings([]); return; }
+    api.request(`/api/perubahan/setda/${selectedSetda}/findings`, { method: 'GET' })
+      .then(r => setFindings(Array.isArray(r?.data) ? r.data : []))
+      .catch(() => setFindings([]));
+  }, [selectedSetda, refreshKey]);
 
   const loadMatriks = async () => {
     if (!selectedSetda) return;
@@ -148,6 +156,8 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
     try {
       const resp = await api.request(`/api/perubahan/setda/${selectedSetda}/pemeriksaan`, { method: 'POST', body: JSON.stringify({}) });
       toast.success(resp.message || 'Pemeriksaan selesai');
+      const fr = await api.request(`/api/perubahan/setda/${selectedSetda}/findings`, { method: 'GET' });
+      setFindings(Array.isArray(fr?.data) ? fr.data : []);
     } catch (err) { toast.error('Gagal: ' + err.message); } finally { setChecking(false); }
   };
 
@@ -483,6 +493,22 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Temuan Pemeriksaan Setda (Fase 4) */}
+      {detail && findings.length > 0 && (
+        <div className="p-3 rounded-lg border border-amber-200 bg-amber-50/50">
+          <p className="text-xs font-bold text-amber-800 mb-2 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> TEMUAN PEMERIKSAAN SETDA ({findings.length})</p>
+          <div className="space-y-1.5">
+            {findings.map(f => (
+              <div key={f.id} className="p-2 rounded-lg border border-amber-200 bg-white text-xs">
+                <p className="font-medium">[{String(f.severity || 'minor').toUpperCase()}] {f.item || '-'}{f.chapter ? ` (BAB ${f.chapter})` : ''}</p>
+                <p className="text-muted-foreground mt-0.5">{f.description}</p>
+                {f.recommendation && <p className="text-blue-700 mt-0.5">Rekomendasi: {f.recommendation}</p>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

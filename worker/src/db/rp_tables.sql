@@ -16,3 +16,5 @@ CREATE INDEX IF NOT EXISTS idx_rp_src_setda ON renja_perubahan_sources(setda_id)
 CREATE TABLE IF NOT EXISTS renja_perubahan_notifications (id TEXT PRIMARY KEY, target_role TEXT, nama_biro TEXT, type TEXT, message TEXT, is_read INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')));
 CREATE TABLE IF NOT EXISTS audit_log (id TEXT PRIMARY KEY, user_id TEXT, user_name TEXT, user_role TEXT, action TEXT, object_type TEXT, object_id TEXT, notes TEXT, metadata TEXT, created_at TEXT DEFAULT (datetime('now')));
 CREATE INDEX IF NOT EXISTS idx_audit_obj ON audit_log(object_type, object_id);
+CREATE TABLE IF NOT EXISTS renja_perubahan_setda_findings (id TEXT PRIMARY KEY, setda_id TEXT, chapter TEXT, item TEXT, description TEXT, recommendation TEXT, severity TEXT DEFAULT 'minor', status TEXT DEFAULT 'terbuka', created_at TEXT DEFAULT (datetime('now')));
+CREATE INDEX IF NOT EXISTS idx_rp_sf_setda ON renja_perubahan_setda_findings(setda_id);
