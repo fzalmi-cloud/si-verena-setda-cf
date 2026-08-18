@@ -218,56 +218,16 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
     setExporting(type);
     try {
       if (type === 'docx') {
-        const { Document, Packer, Paragraph, HeadingLevel, Header, Footer, PageNumber, AlignmentType, PageBreak, Table, TableRow, TableCell, WidthType, TextRun } = await import('docx');
+        // Export berbasis TEMPLATE resmi template-renja-perubahan-setda.docx
         const { saveAs } = await import('file-saver');
-        const children = [];
-        children.push(new Paragraph({ text: 'RENJA PERUBAHAN SEKRETARIAT DAERAH PROVINSI SUMATERA BARAT', heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER }));
-        children.push(new Paragraph({ text: `TAHUN ${tahunState}`, heading: HeadingLevel.HEADING_2, alignment: AlignmentType.CENTER }));
-        children.push(new Paragraph({ text: `Status: ${detail.status === 'final' ? 'FINAL' : 'DRAFT'}` }));
-        children.push(new Paragraph({ text: '' }));
-        // Daftar isi (TOC manual)
-        children.push(new Paragraph({ text: 'DAFTAR ISI', heading: HeadingLevel.HEADING_1 }));
-        sections.forEach(s => children.push(new Paragraph({ text: `${s.chapter}.${s.subchapter} ${s.judul}` })));
-        children.push(new Paragraph({ children: [new PageBreak()] }));
-        let lastChapter = '';
-        sections.forEach(s => {
-          if (s.chapter !== lastChapter) {
-            children.push(new Paragraph({ children: [new PageBreak()] }));
-            lastChapter = s.chapter;
-          }
-          children.push(new Paragraph({ text: `BAB ${s.chapter}`, heading: HeadingLevel.HEADING_1 }));
-          children.push(new Paragraph({ text: `${s.chapter}.${s.subchapter} ${s.judul}`, heading: HeadingLevel.HEADING_2 }));
-          // Paragraf & tabel (baris '|' -> tabel Word sesungguhnya)
-          parseTableBlocks(s.content).forEach(b => {
-            if (b.type === 'table') {
-              try {
-                children.push(new Table({
-                  width: { size: 100, type: WidthType.PERCENTAGE },
-                  rows: b.rows.map((r, ri) => new TableRow({
-                    tableHeader: ri === 0,
-                    children: r.map(c => new TableCell({
-                      shading: ri === 0 ? { fill: 'EDE9FE' } : undefined,
-                      children: [new Paragraph({ text: c, size: 16 })],
-                    })),
-                  })),
-                }));
-              } catch (tbErr) {
-                console.warn('[exportSetda] tabel gagal, fallback teks:', tbErr.message);
-                b.rows.forEach(r => children.push(new Paragraph({ text: r.join(' | '), size: 16 })));
-              }
-            } else {
-              b.lines.forEach(p => children.push(new Paragraph({ text: p, size: 20 })));
-            }
-          });
-        });
-        const doc = new Document({
-          sections: [{
-            headers: { default: new Header({ children: [new Paragraph({ text: 'RENJA PERUBAHAN SEKRETARIAT DAERAH', alignment: AlignmentType.RIGHT })] }) },
-            footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ children: [PageNumber.CURRENT] })] })] }) },
-            children,
-          }],
-        });
-        const blob = await Packer.toBlob(doc);
+        const JSZip = (await import('jszip')).default;
+        const { buildDocxFromTemplate } = await import('@/lib/templateDocx');
+        const tplResp = await fetch('/templates/template-renja-perubahan-setda.docx');
+        if (!tplResp.ok) throw new Error('Template DOCX tidak ditemukan');
+        const zip = await JSZip.loadAsync(await tplResp.arrayBuffer());
+        const outXml = await buildDocxFromTemplate(zip, sections);
+        zip.file('word/document.xml', outXml);
+        const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
         saveAs(blob, `Renja_Perubahan_Setda_${tahunState}.docx`);
       } else if (type === 'xlsx') {
         const XLSX = await import('xlsx');
@@ -288,47 +248,112 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
         });
         XLSX.writeFile(wb, `Renja_Perubahan_Setda_${tahunState}.xlsx`);
       } else {
+        // Export PDF — meniru layout template-renja-perubahan-setda.pdf (sampul resmi + Daftar Isi + BAB)
         const { jsPDF } = await import('jspdf');
         const { default: autoTable } = await import('jspdf-autotable');
         const doc = new jsPDF();
-        doc.setFillColor(88, 28, 135);
-        doc.rect(0, 0, 210, 26, 'F');
-        doc.setTextColor(255, 255, 255); doc.setFontSize(13); doc.setFont('helvetica', 'bold');
-        doc.text('RENJA PERUBAHAN SEKRETARIAT DAERAH', 105, 11, { align: 'center' });
-        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-        doc.text(`PROVINSI SUMATERA BARAT — TAHUN ${tahunState}  |  ${detail.status === 'final' ? 'FINAL' : 'DRAFT'}`.toUpperCase(), 105, 19, { align: 'center' });
-        let y = 34;
-        doc.setTextColor(30, 41, 59); doc.setFontSize(9);
+        const statusLabel = detail.status === 'final' ? 'FINAL' : 'DRAFT';
+        const W = 210;
+        const M = 16;
+        const CW = W - M * 2;
+
+        // ── HALAMAN SAMPUL ──
+        doc.setFillColor(30, 41, 59);
+        doc.rect(0, 0, W, 297, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('times', 'bold');
+        doc.setFontSize(20);
+        doc.text('PEMERINTAH PROVINSI SUMATERA BARAT', W / 2, 60, { align: 'center' });
+        doc.setFontSize(16);
+        doc.text('SEKRETARIAT DAERAH', W / 2, 70, { align: 'center' });
+        doc.setDrawColor(255, 255, 255);
+        doc.setLineWidth(0.6);
+        doc.line(50, 78, 160, 78);
+        doc.setFontSize(22);
+        doc.text('DOKUMEN RENCANA KERJA PERUBAHAN', W / 2, 98, { align: 'center' });
+        doc.text('(RENJA PERUBAHAN)', W / 2, 110, { align: 'center' });
+        doc.setFontSize(14);
+        doc.text('SEKRETARIAT DAERAH PROVINSI SUMATERA BARAT', W / 2, 132, { align: 'center' });
+        doc.text(`TAHUN ANGGARAN ${tahunState}`, W / 2, 142, { align: 'center' });
+        doc.setFont('times', 'normal');
+        doc.setFontSize(10);
+        doc.text(`STATUS DOKUMEN: ${statusLabel} — VERIFIKASI SIVERENA.ID`, W / 2, 160, { align: 'center' });
+        doc.text(`PADANG ${tahunState}`, W / 2, 250, { align: 'center' });
+
+        // ── DAFTAR ISI ──
+        doc.addPage();
+        let y = 24;
+        doc.setTextColor(30, 41, 59);
+        doc.setFont('times', 'bold');
+        doc.setFontSize(16);
+        doc.text('DAFTAR ISI', W / 2, y, { align: 'center' });
+        y += 12;
+        doc.setFontSize(10);
+        let lastChapter = '';
         sections.forEach(s => {
-          const judul = `${s.chapter}.${s.subchapter} ${s.judul}`;
-          doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+          if (s.chapter !== lastChapter) {
+            doc.setFont('times', 'bold');
+            doc.text(`BAB ${s.chapter}`, M, y);
+            y += 6;
+            lastChapter = s.chapter;
+          }
+          doc.setFont('times', 'normal');
+          doc.text(`${s.chapter}.${s.subchapter} ${s.judul}`, M + 6, y);
+          y += 5;
           if (y > 275) { doc.addPage(); y = 20; }
+        });
+
+        // ── ISI BAB ──
+        lastChapter = '';
+        y = 24;
+        sections.forEach(s => {
+          if (s.chapter !== lastChapter) {
+            if (y > 60) { doc.addPage(); y = 24; }
+            doc.setFillColor(88, 28, 135);
+            doc.rect(M, y - 5, CW, 8, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('times', 'bold');
+            doc.setFontSize(11);
+            doc.text(`BAB ${s.chapter}`, M + 3, y);
+            y += 14;
+            lastChapter = s.chapter;
+          }
           doc.setTextColor(30, 41, 59);
-          doc.text(judul, 14, y); y += 6;
-          doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-          parseTableBlocks(s.content || 'Data Belum Tersedia').forEach(b => {
+          doc.setFont('times', 'bold');
+          doc.setFontSize(11);
+          if (y > 280) { doc.addPage(); y = 20; }
+          doc.text(`${s.chapter}.${s.subchapter} ${s.judul}`, M, y);
+          y += 7;
+          doc.setFont('times', 'normal');
+          doc.setFontSize(9);
+          parseTableBlocks(s.content).forEach(b => {
             if (b.type === 'table') {
               autoTable(doc, {
                 startY: y,
                 head: [b.rows[0]],
                 body: b.rows.slice(1),
                 theme: 'grid',
-                styles: { fontSize: 6, cellPadding: 1 },
-                headStyles: { fillColor: [88, 28, 135], fontSize: 6.5, textColor: 255 },
-                margin: { left: 14, right: 14 },
+                styles: { font: 'times', fontSize: 6.5, cellPadding: 1 },
+                headStyles: { fillColor: [88, 28, 135], fontSize: 7, textColor: 255 },
+                margin: { left: M, right: M },
               });
               y = doc.lastAutoTable.finalY + 5;
             } else {
-              const lines = doc.splitTextToSize(b.lines.join('\n'), 182);
-              for (const l of lines) { if (y > 275) { doc.addPage(); y = 20; } doc.setTextColor(30, 41, 59); doc.text(l, 14, y); y += 5; }
+              const lines = doc.splitTextToSize(b.lines.join('\n'), CW);
+              for (const l of lines) { if (y > 282) { doc.addPage(); y = 20; } doc.setTextColor(30, 41, 59); doc.text(l, M, y); y += 4.6; }
             }
           });
-          y += 3;
+          y += 4;
         });
+
+        // footer halaman
         const pages = doc.getNumberOfPages();
         for (let i = 1; i <= pages; i++) {
-          doc.setPage(i); doc.setFontSize(7); doc.setTextColor(120, 120, 120);
-          doc.text(`SI-VERENA SETDA — Renja Perubahan Setda ${tahunState}  |  Halaman ${i} dari ${pages}`, 105, 290, { align: 'center' });
+          doc.setPage(i);
+          if (i === 1) continue; // sampul tanpa footer
+          doc.setFontSize(7);
+          doc.setTextColor(120, 120, 120);
+          doc.text(`SI-VERENA SETDA — Renja Perubahan Setda ${tahunState} (${statusLabel}) | Halaman ${i} dari ${pages}`, W / 2, 290, { align: 'center' });
         }
         doc.save(`Renja_Perubahan_Setda_${tahunState}.pdf`);
       }
