@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Users, BookOpen, Shield, ChevronLeft, ChevronRight, LogOut, Eye, X,
+  Users, BookOpen, ChevronLeft, ChevronRight, LogOut, Eye, X,
   CalendarRange, UserCircle, GitBranch, BookMarked
 } from 'lucide-react';
 
@@ -75,11 +75,15 @@ export default function Sidebar({ collapsed, setCollapsed, user, realUser }) {
       "fixed left-0 top-0 h-screen bg-sidebar text-sidebar-foreground flex flex-col z-50 transition-all duration-300",
       collapsed ? "w-16" : "w-64"
     )}>
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
-        <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center flex-shrink-0">
-          <Shield className="w-5 h-5 text-sidebar-primary-foreground" />
-        </div>
+      {/* Logo Provinsi Sumatera Barat */}
+      <div className="flex items-center gap-2.5 px-3 h-16 border-b border-sidebar-border">
+        <img
+          src="/logo-sumbar-white.png"
+          alt="Logo Provinsi Sumatera Barat"
+          className={collapsed
+            ? "w-9 h-9 rounded-lg object-cover object-left flex-shrink-0"
+            : "h-10 w-auto max-w-[110px] object-contain flex-shrink-0"}
+        />
         {!collapsed && (
           <div className="overflow-hidden">
             <h1 className="text-sm font-bold font-heading tracking-tight text-sidebar-foreground">SI-VERENA</h1>

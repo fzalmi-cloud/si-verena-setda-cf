@@ -156,8 +156,17 @@ export async function buildDocxFromTemplate(zip, sections) {
 
   // cari BAB IV PENUTUP (heading asli, teks persis — hindari deskripsi sistematika di BAB I)
   const babIV = allParas.find(p => paraText(p).trim() === 'BAB IV PENUTUP');
-  // cari paragraf sampel pertama (sebagai basis gaya teks)
-  const basePara = allParas.find(p => paraText(p).trim().length > 40) || sectionHeadings[0]?.p || allParas[0];
+  // cari paragraf sampel BODY (setelah heading section pertama) sebagai basis gaya teks —
+  // JANGAN pakai paragraf sampul (font besar 18pt) agar ukuran teks sesuai isi dokumen
+  let basePara = null;
+  if (sectionHeadings[0]) {
+    let nb = sectionHeadings[0].p.nextSibling;
+    while (nb && !basePara) {
+      if (nb.nodeName === 'w:p') basePara = nb;
+      nb = nb.nextSibling;
+    }
+  }
+  if (!basePara) basePara = allParas.find(p => paraText(p).trim().length > 40) || allParas[0];
 
   // preprocess konten per section: narrative + tabel pipe
   const sectionBlocks = new Map();

@@ -304,6 +304,7 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
         });
 
         // ── ISI BAB ──
+        doc.addPage(); // halaman baru agar Daftar Isi tidak bertumpuk
         lastChapter = '';
         y = 24;
         sections.forEach(s => {
