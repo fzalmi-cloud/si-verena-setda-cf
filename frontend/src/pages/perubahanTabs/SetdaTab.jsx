@@ -240,16 +240,21 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
           // Paragraf & tabel (baris '|' -> tabel Word sesungguhnya)
           parseTableBlocks(s.content).forEach(b => {
             if (b.type === 'table') {
-              children.push(new Table({
-                width: { size: 100, type: WidthType.PERCENTAGE },
-                rows: b.rows.map((r, ri) => new TableRow({
-                  tableHeader: ri === 0,
-                  children: r.map(c => new TableCell({
-                    shading: ri === 0 ? { fill: 'EDE9FE' } : undefined,
-                    children: [new Paragraph({ text: c, size: 16 })],
+              try {
+                children.push(new Table({
+                  width: { size: 100, type: WidthType.PERCENTAGE },
+                  rows: b.rows.map((r, ri) => new TableRow({
+                    tableHeader: ri === 0,
+                    children: r.map(c => new TableCell({
+                      shading: ri === 0 ? { fill: 'EDE9FE' } : undefined,
+                      children: [new Paragraph({ text: c, size: 16 })],
+                    })),
                   })),
-                })),
-              }));
+                }));
+              } catch (tbErr) {
+                console.warn('[exportSetda] tabel gagal, fallback teks:', tbErr.message);
+                b.rows.forEach(r => children.push(new Paragraph({ text: r.join(' | '), size: 16 })));
+              }
             } else {
               b.lines.forEach(p => children.push(new Paragraph({ text: p, size: 20 })));
             }
@@ -328,7 +333,10 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
         doc.save(`Renja_Perubahan_Setda_${tahunState}.pdf`);
       }
       toast.success(`Export ${type.toUpperCase()} berhasil`);
-    } catch (err) { toast.error('Gagal export: ' + err.message); } finally { setExporting(''); }
+    } catch (err) {
+      console.error('[exportSetda]', type, err);
+      toast.error(`Gagal export ${type.toUpperCase()}: ${err?.message || err}${err?.stack ? ' — lihat konsol (F12)' : ''}`);
+    } finally { setExporting(''); }
   };
 
   const isFinal = detail?.status === 'final';
