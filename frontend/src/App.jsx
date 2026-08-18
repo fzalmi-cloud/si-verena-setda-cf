@@ -22,6 +22,7 @@ import KelolaPengguna from '@/pages/KelolaPengguna';
 import PeriodeRenja from '@/pages/PeriodeRenja';
 import Profil from '@/pages/Profil';
 import RenjaPerubahan from '@/pages/perubahan/RenjaPerubahan';
+import RenjaMurni from '@/pages/RenjaMurni';
 import UploadRenja from '@/pages/UploadRenja';
 import UploadRevisi from '@/pages/UploadRevisi';
 import CatatanVerifikasiBappeda from '@/pages/FileReferensi';
@@ -50,6 +51,7 @@ function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
                 <Route path="/" element={<Dashboard />} />
+                <Route path="/renja" element={<RenjaMurni />} />
                 <Route path="/pemeriksaan" element={<Pemeriksaan />} />
                 <Route path="/status-pemeriksaan" element={<Pemeriksaan />} />
                 <Route path="/hasil" element={<HasilVerifikasi />} />
