@@ -872,6 +872,7 @@ ${refContext ? `DOKUMEN ACUAN AKTIF:\n${refContext}\n` : ''}
 CATATAN: ${finalCount} dari ${compiledCount} biro sudah FINAL. Biro belum final ditandai "BELUM FINAL" — data tetap dipakai sebagai draft awal.
 
 TUGAS: tulis isi setiap subbab dengan mengkompilasi data SEMUA biro (bukan hanya satu biro), bahasa Indonesia formal sesuai kaidah dokumen perencanaan daerah, angka ditulis konsisten. Jika suatu subbab belum ada datanya, tulis: "Data belum tersedia dan akan dilengkapi setelah seluruh biro ditetapkan final."
+PENTING: JANGAN salin matriks/tabel secara verbatim ke dalam konten; cukup rangkum polanya dan rujuk pada "Matriks Renja Perubahan Setda" (lampiran).
 
 Format JSON (hanya JSON):
 {"sections":[{"sub":"${template[0]?.sub}","content":"isi subbab (gunakan \\n untuk paragraf baru)"}]}
@@ -999,8 +1000,11 @@ perubahanRoutes.post('/setda/generate', async (c) => {
     sectionStatus['3.4'] = 'otomatis';
   }
   const babResults = await Promise.allSettled([1, 2, 3, 4].map(async (bab) => {
-    const tpl = SETDA_TEMPLATE.filter(t => Number(t.chapter) === bab);
-    const r = await compileBAB(provider, { year, bab, template: tpl, digests, matrixText: bab === 3 ? matrixText : '', refContext, finalCount: finalSubs.length, compiledCount: biroData.length });
+    // 3.4 matriks diisi langsung dari hasil agregasi, tidak perlu dikompilasi AI
+    const tpl = SETDA_TEMPLATE.filter(t => Number(t.chapter) === bab && t.sub !== '3.4');
+    // Batasi matriks pada prompt BAB III agar respons AI tidak terpotong (hindari salin tabel verbatim)
+    const promptMatrix = bab === 3 ? matrixText.split('\n').slice(0, 120).join('\n') : '';
+    const r = await compileBAB(provider, { year, bab, template: tpl, digests, matrixText: promptMatrix, refContext, finalCount: finalSubs.length, compiledCount: biroData.length });
     return { bab, r };
   }));
   for (const br of babResults) {
