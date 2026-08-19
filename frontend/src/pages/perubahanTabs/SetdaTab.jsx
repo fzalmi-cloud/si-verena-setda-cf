@@ -228,7 +228,7 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
         // logo emblem utk sampul (versi hitam utk kertas putih)
         let logoBytes = null;
         try {
-          const logoResp = await fetch('/logo-sumbar-emblem-black.png');
+          const logoResp = await fetch('/logo-sumbar-emblem-black-v3.png');
           if (logoResp.ok) logoBytes = new Uint8Array(await logoResp.arrayBuffer());
         } catch { /* logo opsional */ }
         const outXml = await buildDocxFromTemplate(zip, sections, { logoBytes });
@@ -269,7 +269,7 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
         doc.setTextColor(255, 255, 255);
         // Logo Provinsi Sumatera Barat (emblem) di tengah atas
         try {
-          const logoResp = await fetch('/logo-sumbar-emblem-white.png');
+          const logoResp = await fetch('/logo-sumbar-emblem-white-v3.png');
           if (logoResp.ok) {
             const buf = await logoResp.arrayBuffer();
             const bytes = new Uint8Array(buf);

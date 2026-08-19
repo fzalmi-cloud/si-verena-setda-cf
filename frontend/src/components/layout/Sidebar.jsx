@@ -78,15 +78,12 @@ export default function Sidebar({ collapsed, setCollapsed, user, realUser }) {
       {/* Logo Provinsi Sumatera Barat — emblem bersih */}
       <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
         <img
-          src="/logo-sumbar-emblem-white.png"
+          src="/logo-sumbar-emblem-white-v3.png"
           alt="Logo Provinsi Sumatera Barat"
           className="w-10 h-10 object-contain flex-shrink-0"
         />
         {!collapsed && (
-          <div className="overflow-hidden">
-            <h1 className="text-sm font-bold font-heading tracking-tight text-sidebar-foreground">SI-VERENA</h1>
-            <p className="text-[10px] text-sidebar-foreground/60">Verifikasi Renja Setda</p>
-          </div>
+          <h1 className="text-sm font-bold font-heading tracking-tight text-sidebar-foreground">SI-VERENA</h1>
         )}
       </div>
 
