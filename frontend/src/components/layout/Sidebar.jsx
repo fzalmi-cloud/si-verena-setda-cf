@@ -75,14 +75,12 @@ export default function Sidebar({ collapsed, setCollapsed, user, realUser }) {
       "fixed left-0 top-0 h-screen bg-sidebar text-sidebar-foreground flex flex-col z-50 transition-all duration-300",
       collapsed ? "w-16" : "w-64"
     )}>
-      {/* Logo Provinsi Sumatera Barat */}
-      <div className="flex items-center gap-2.5 px-3 h-16 border-b border-sidebar-border">
+      {/* Logo Provinsi Sumatera Barat — emblem saja */}
+      <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
         <img
-          src="/logo-sumbar-white.png"
+          src="/logo-sumbar-emblem-white.png"
           alt="Logo Provinsi Sumatera Barat"
-          className={collapsed
-            ? "w-9 h-9 rounded-lg object-cover object-left flex-shrink-0"
-            : "h-10 w-auto max-w-[110px] object-contain flex-shrink-0"}
+          className="w-9 h-9 rounded-lg object-contain flex-shrink-0"
         />
         {!collapsed && (
           <div className="overflow-hidden">
