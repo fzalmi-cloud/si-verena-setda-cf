@@ -225,7 +225,13 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
         const tplResp = await fetch('/templates/template-renja-perubahan-setda.docx');
         if (!tplResp.ok) throw new Error('Template DOCX tidak ditemukan');
         const zip = await JSZip.loadAsync(await tplResp.arrayBuffer());
-        const outXml = await buildDocxFromTemplate(zip, sections);
+        // logo emblem utk sampul (versi hitam utk kertas putih)
+        let logoBytes = null;
+        try {
+          const logoResp = await fetch('/logo-sumbar-emblem-black.png');
+          if (logoResp.ok) logoBytes = new Uint8Array(await logoResp.arrayBuffer());
+        } catch { /* logo opsional */ }
+        const outXml = await buildDocxFromTemplate(zip, sections, { logoBytes });
         zip.file('word/document.xml', outXml);
         const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
         saveAs(blob, `Renja_Perubahan_Setda_${tahunState}.docx`);
@@ -261,23 +267,34 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
         doc.setFillColor(30, 41, 59);
         doc.rect(0, 0, W, 297, 'F');
         doc.setTextColor(255, 255, 255);
+        // Logo Provinsi Sumatera Barat (emblem) di tengah atas
+        try {
+          const logoResp = await fetch('/logo-sumbar-emblem-white.png');
+          if (logoResp.ok) {
+            const buf = await logoResp.arrayBuffer();
+            const bytes = new Uint8Array(buf);
+            let bin = '';
+            bytes.forEach(b => { bin += String.fromCharCode(b); });
+            doc.addImage('data:image/png;base64,' + btoa(bin), 'PNG', W / 2 - 22, 22, 44, 47);
+          }
+        } catch { /* logo opsional */ }
         doc.setFont('times', 'bold');
         doc.setFontSize(20);
-        doc.text('PEMERINTAH PROVINSI SUMATERA BARAT', W / 2, 60, { align: 'center' });
+        doc.text('PEMERINTAH PROVINSI SUMATERA BARAT', W / 2, 90, { align: 'center' });
         doc.setFontSize(16);
-        doc.text('SEKRETARIAT DAERAH', W / 2, 70, { align: 'center' });
+        doc.text('SEKRETARIAT DAERAH', W / 2, 100, { align: 'center' });
         doc.setDrawColor(255, 255, 255);
         doc.setLineWidth(0.6);
-        doc.line(50, 78, 160, 78);
+        doc.line(50, 108, 160, 108);
         doc.setFontSize(22);
-        doc.text('DOKUMEN RENCANA KERJA PERUBAHAN', W / 2, 98, { align: 'center' });
-        doc.text('(RENJA PERUBAHAN)', W / 2, 110, { align: 'center' });
+        doc.text('DOKUMEN RENCANA KERJA PERUBAHAN', W / 2, 128, { align: 'center' });
+        doc.text('(RENJA PERUBAHAN)', W / 2, 140, { align: 'center' });
         doc.setFontSize(14);
-        doc.text('SEKRETARIAT DAERAH PROVINSI SUMATERA BARAT', W / 2, 132, { align: 'center' });
-        doc.text(`TAHUN ANGGARAN ${tahunState}`, W / 2, 142, { align: 'center' });
+        doc.text('SEKRETARIAT DAERAH PROVINSI SUMATERA BARAT', W / 2, 162, { align: 'center' });
+        doc.text(`TAHUN ANGGARAN ${tahunState}`, W / 2, 172, { align: 'center' });
         doc.setFont('times', 'normal');
         doc.setFontSize(10);
-        doc.text(`STATUS DOKUMEN: ${statusLabel} — VERIFIKASI SIVERENA.ID`, W / 2, 160, { align: 'center' });
+        doc.text(`STATUS DOKUMEN: ${statusLabel} — VERIFIKASI SIVERENA.ID`, W / 2, 190, { align: 'center' });
         doc.text(`PADANG ${tahunState}`, W / 2, 250, { align: 'center' });
 
         // ── DAFTAR ISI ──
