@@ -75,9 +75,18 @@ export async function buildDocxFromTemplate(zip, sections, opts = {}) {
     return t;
   };
   // Buat paragraf baru berdasarkan template paragraf (gaya sama), isi = satu baris teks
-  const createPara = (base, text) => {
+  const createPara = (base, text, { justify = true } = {}) => {
     const p = base.cloneNode(true);
     byTag(p, 'w:r').forEach(r => r.parentNode.removeChild(r));
+    let pPr = byTag(p, 'w:pPr')[0];
+    if (!pPr) { pPr = doc.createElement('w:pPr'); p.insertBefore(pPr, p.firstChild); }
+    let jc = byTag(pPr, 'w:jc')[0];
+    if (justify) {
+      if (!jc) { jc = doc.createElement('w:jc'); pPr.appendChild(jc); }
+      jc.setAttribute('w:val', 'both');
+    } else if (jc) {
+      jc.parentNode.removeChild(jc);
+    }
     const r = doc.createElement('w:r');
     const rPr = byTag(base, 'w:rPr')[0];
     if (rPr) r.appendChild(rPr.cloneNode(true));
@@ -144,26 +153,26 @@ export async function buildDocxFromTemplate(zip, sections, opts = {}) {
   // Buat tabel baru (dipakai utk Tabel 3.4 matriks) dari template tabel (Tabel 3.1) + rows
   const createTable = (baseTbl, rows) => {
     const tbl = baseTbl.cloneNode(true);
-    // hapus semua baris, gunakan baris pertama pipe sebagai header
+    const hdrTr = byTag(tbl, 'w:tr')[0] || null;
+    const sampleTr = byTag(tbl, 'w:tr')[1] || hdrTr || null;
     byTag(tbl, 'w:tr').forEach(r => r.parentNode.removeChild(r));
-    const sampleTr = byTag(baseTbl, 'w:tr')[1] || byTag(baseTbl, 'w:tr')[0] || null;
     (rows || []).forEach((row, ri) => {
-      if (sampleTr) {
-        const tr = sampleTr.cloneNode(true);
-        let tcs = byTag(tr, 'w:tc');
-        const ncols = row.length;
-        while (tcs.length < ncols) {
-          const tc = byTag(sampleTr, 'w:tc')[0].cloneNode(true);
-          tr.appendChild(tc);
-          tcs = byTag(tr, 'w:tc');
-        }
-        while (tcs.length > ncols) {
-          tcs[tcs.length - 1].parentNode.removeChild(tcs[tcs.length - 1]);
-          tcs = byTag(tr, 'w:tc');
-        }
-        tcs.forEach((tc, ci) => setCellText(tc, String(row[ci] ?? '')));
-        tbl.appendChild(tr);
+      const trBase = ri === 0 ? (hdrTr || sampleTr) : sampleTr;
+      if (!trBase) return;
+      const tr = trBase.cloneNode(true);
+      let tcs = byTag(tr, 'w:tc');
+      const ncols = row.length;
+      while (tcs.length < ncols) {
+        const tc = byTag(trBase, 'w:tc')[0].cloneNode(true);
+        tr.appendChild(tc);
+        tcs = byTag(tr, 'w:tc');
       }
+      while (tcs.length > ncols) {
+        tcs[tcs.length - 1].parentNode.removeChild(tcs[tcs.length - 1]);
+        tcs = byTag(tr, 'w:tc');
+      }
+      tcs.forEach((tc, ci) => setCellText(tc, String(row[ci] ?? '')));
+      tbl.appendChild(tr);
     });
     return tbl;
   };
@@ -207,7 +216,7 @@ export async function buildDocxFromTemplate(zip, sections, opts = {}) {
         const joined = b.lines.join('\n');
         const m = joined.match(/^(Tabel\s+3\.\d\s*—[^\n]*)$/i);
         if (m) pendingTitle = m[1].trim();
-        else paras.push(joined);
+        else b.lines.forEach(l => paras.push(l)); // tiap baris = paragraf sendiri (daftar 1. 2. 3. tetap turun ke bawah)
       } else {
         tables.push({ title: pendingTitle, rows: b.rows });
         pendingTitle = null;
@@ -281,11 +290,16 @@ export async function buildDocxFromTemplate(zip, sections, opts = {}) {
     }
   }
 
+  // cari tabel template multi-kolom (Tabel 3.1/3.3) sbg basis tabel baru —
+  // JANGAN pakai tabel STATUS sampul (1 kolom, font 11pt)
+  const allTables = byTag(body, 'w:tbl');
+  const multiColTbl = allTables.find(t => byTag(t, 'w:gridCol').length >= 5) || allTables[0];
+
   // 3.4 Matriks — sisipkan heading + caption + tabel sebelum BAB IV
   const s34 = sections.find(s => s.subchapter === '3.4');
   if (s34 && babIV && sectionBlocks.has(s34)) {
     const { paras, tables } = sectionBlocks.get(s34);
-    const h34 = createPara(basePara, `3.3.4 ${s34.judul}`);
+    const h34 = createPara(basePara, `3.3.4 ${s34.judul}`, { justify: false });
     // pakai gaya heading section (clone heading section terakhir)
     const secHeadingStyle = sectionHeadings.length ? sectionHeadings[sectionHeadings.length - 1].p : null;
     if (secHeadingStyle) {
@@ -303,18 +317,18 @@ export async function buildDocxFromTemplate(zip, sections, opts = {}) {
       });
       tables.forEach(tb => {
         if (tb.title) {
-          const cap = createPara(basePara, tb.title);
+          const cap = createPara(basePara, tb.title, { justify: false });
           babIV.parentNode.insertBefore(cap, babIV);
         }
-        const tbl = createTable(byTag(body, 'w:tbl')[0], tb.rows);
+        const tbl = createTable(multiColTbl, tb.rows);
         babIV.parentNode.insertBefore(tbl, babIV);
       });
     } else {
       babIV.parentNode.insertBefore(h34, babIV);
       paras.forEach(line => babIV.parentNode.insertBefore(createPara(basePara, line), babIV));
       tables.forEach(tb => {
-        if (tb.title) babIV.parentNode.insertBefore(createPara(basePara, tb.title), babIV);
-        babIV.parentNode.insertBefore(createTable(byTag(body, 'w:tbl')[0], tb.rows), babIV);
+        if (tb.title) babIV.parentNode.insertBefore(createPara(basePara, tb.title, { justify: false }), babIV);
+        babIV.parentNode.insertBefore(createTable(multiColTbl, tb.rows), babIV);
       });
     }
   }
