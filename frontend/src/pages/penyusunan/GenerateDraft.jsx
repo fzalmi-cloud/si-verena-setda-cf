@@ -49,12 +49,31 @@ const BAB_STRUKTUR = [
   ]},
 ];
 
+// Instruksi tabel wajib Permendagri 86/2017 per BAB (format baris-pipa agar
+// tersimpan sebagai tabel di konten draft dan dirender di DOCX/PDF).
+const TABEL_PER_BAB = {
+  '2': `WAJIB sertakan tabel-tabel berikut (tulis judul tabel satu baris, lalu baris header dan isi dipisahkan tanda | ; minimal 3 kolom; gunakan tanda — bila data tidak tersedia):
+- Tabel 2.1 — Rekapitulasi Evaluasi Hasil Pelaksanaan Renja Setda dan Pencapaian Renstra s.d. Tahun 2026
+  Kolom: Kode | Urusan/Bidang Urusan/Program/Kegiatan | Indikator Kinerja Program/Kegiatan | Target Renstra | Realisasi Renja s.d. Tahun Lalu | Tingkat Realisasi (%) | Realisasi Capaian s.d. Tahun 2026 | Target Kinerja dan Anggaran Renja Tahun Berjalan | Realisasi Kinerja dan Anggaran s.d. Triwulan II | Tingkat Capaian | Unit Kerja Penanggung Jawab
+- Tabel 2.2 — Pencapaian Kinerja Pelayanan Sekretariat Daerah
+  Kolom: Indikator | SPM/Standar Nasional | IKK | Target Renstra | Realisasi | Capaian (%) | Proyeksi | Catatan Analisis
+- Tabel 2.3 — Review terhadap Rancangan Awal RKPD
+  Kolom: Rancangan Awal RKPD — Program/Kegiatan | Lokasi | Target Capaian Kinerja | Pagu Indikatif | Hasil Analisis Kebutuhan — Program/Kegiatan | Lokasi | Target Capaian Kinerja | Kebutuhan Dana | Catatan Penting
+- Tabel 2.4 — Usulan Program dan Kegiatan dari Para Pemangku Kepentingan
+  Kolom: No | Program/Kegiatan | Lokasi | Indikator Kinerja | Besaran/Volume | Catatan`,
+  '4': `WAJIB sertakan tabel berikut:
+- Tabel 4.1 — Rekapitulasi Rencana Program, Kegiatan, Subkegiatan, Indikator, Target, Lokasi dan Pendanaan (matriks Renja)
+  Kolom: Kode | Urusan/Bidang Urusan/Program/Kegiatan/Subkegiatan | Indikator Kinerja | Target | Satuan | Pagu (Rp) | Sumber Dana | Lokasi | Unit Kerja Penanggung Jawab`,
+};
+
 function buildPromptForBab(nomor, judul, konteks) {
   const sysPrompt = `Kamu adalah asisten penyusun dokumen perencanaan perangkat daerah. Tugasmu menyusun Draft Renja Sekretariat Daerah Provinsi Sumatera Barat berdasarkan data resmi yang tersimpan dalam sistem. Gunakan Permendagri Nomor 86 Tahun 2017, Surat Edaran Gubernur tentang Penyusunan Rancangan Awal Renja Tahun 2027, Renstra Setda 2025–2029, kertas kerja penyusunan Renja, hasil verifikasi internal, dan Renja terakhir dari 9 biro serta draft renja setda (jika ada) sebagai sumber. Jangan membuat data baru yang tidak ada dalam sistem. Jika data tidak tersedia, beri penanda [Data belum tersedia di sistem]. Jika informasi perlu keputusan verifikator, beri penanda [Perlu review verifikator]. Susun dokumen dengan bahasa formal pemerintahan, sistematis, dan sesuai format Renja Perangkat Daerah.`;
 
+  const tabelWajib = TABEL_PER_BAB[nomor] ? `\n\nTABEL WAJIB (Permendagri 86/2017):\n${TABEL_PER_BAB[nomor]}` : '';
+
   return `${sysPrompt}
 
-Susun HANYA bagian BAB ${nomor} - ${judul} dari Draft Renja Setda Provinsi Sumatera Barat Tahun 2027.
+Susun HANYA bagian BAB ${nomor} - ${judul} dari Draft Renja Setda Provinsi Sumatera Barat Tahun 2027.${tabelWajib}
 
 KONTEKS DATA YANG TERSEDIA:
 ${konteks}
@@ -67,6 +86,7 @@ ATURAN PENTING:
 - Jika program/kegiatan tidak cocok Renstra tulis: [Perlu cek kesesuaian dengan Renstra Setda]
 - Di akhir setiap bagian, cantumkan SUMBER DATA yang digunakan dalam format: **Sumber Data:** [daftar sumber]
 - Susun dengan sub-bab sesuai struktur Permendagri 86/2017
+- Untuk setiap tabel wajib di atas: tulis judul tabel pada satu baris, kemudian baris header dan baris data dipisahkan dengan karakter | (minimal 3 kolom per baris) agar tersimpan sebagai tabel
 
 Hasilkan narasi lengkap untuk BAB ${nomor} - ${judul}:`;
 }

@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import TahunSelect from '@/components/TahunSelect';
 
 const STATUS_LABEL = { otomatis: 'OTOMATIS', perlu_review: 'PERLU REVIEW', disusun: 'DISUSUN MANUAL', belum_disusun: 'BELUM DISUSUN' };
+const ROMAN = { '1': 'I', '2': 'II', '3': 'III', '4': 'IV', '5': 'V' };
 const STATUS_COLOR = { otomatis: 'text-emerald-600', perlu_review: 'text-amber-600', disusun: 'text-blue-600', belum_disusun: 'text-muted-foreground' };
 const statusLabel = s => STATUS_LABEL[s] || s || '—';
 const statusColor = s => STATUS_COLOR[s] || 'text-muted-foreground';
@@ -246,11 +247,21 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
           ['BAB', 'Sub', 'Judul', 'Konten'],
           ...sections.map(s => [s.chapter, s.subchapter, s.judul, s.content || '']),
         ]), 'Struktur');
-        // Sheet tabel Permendagri (Tabel 3.1, 3.3, 3.4) dari konten section
-        [['3.1', 'Rekap_Program'], ['3.3', 'Rekap_Pagu'], ['3.4', 'Matriks']].forEach(([sub, sheetName]) => {
-          const sec = sections.find(x => x.subchapter === sub);
-          const tb = sec ? parseTableBlocks(sec.content).find(b => b.type === 'table') : null;
-          if (tb) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tb.rows), sheetName);
+        // Satu sheet per tabel Permendagri 86/2017 yang ada di konten section
+        // (Tabel 2.1–2.4 di BAB II, Tabel 3.1/3.3/3.4 di BAB III)
+        sections.forEach(s => {
+          const blocks = parseTableBlocks(s.content || '');
+          let title = null;
+          blocks.forEach(b => {
+            if (b.type === 'text') {
+              const m = b.lines.join('\n').match(/^(Tabel\s+\d\.\d[^\n]*)$/i);
+              if (m) title = m[1].trim();
+            } else if (b.type === 'table' && title) {
+              const sheetName = title.replace(/^Tabel\s+(\d\.\d).*/i, 'Tabel $1').replace(/[\[\]:*?/\\]/g, '-').slice(0, 31);
+              XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(b.rows), sheetName);
+              title = null;
+            }
+          });
         });
         XLSX.writeFile(wb, `Renja_Perubahan_Setda_${tahunState}.xlsx`);
       } else {
@@ -310,12 +321,12 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
         sections.forEach(s => {
           if (s.chapter !== lastChapter) {
             doc.setFont('times', 'bold');
-            doc.text(`BAB ${s.chapter}`, M, y);
+            doc.text(`BAB ${ROMAN[s.chapter] || s.chapter}`, M, y);
             y += 6;
             lastChapter = s.chapter;
           }
           doc.setFont('times', 'normal');
-          doc.text(`${s.chapter}.${s.subchapter} ${s.judul}`, M + 6, y);
+          doc.text(`${s.subchapter} ${s.judul}`, M + 6, y);
           y += 5;
           if (y > 275) { doc.addPage(); y = 20; }
         });
@@ -332,7 +343,7 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
             doc.setTextColor(255, 255, 255);
             doc.setFont('times', 'bold');
             doc.setFontSize(11);
-            doc.text(`BAB ${s.chapter}`, M + 3, y);
+            doc.text(`BAB ${ROMAN[s.chapter] || s.chapter}`, M + 3, y);
             y += 14;
             lastChapter = s.chapter;
           }
@@ -340,7 +351,7 @@ export default function SetdaTab({ tahun, refreshKey, role, isAdminLike, isVerif
           doc.setFont('times', 'bold');
           doc.setFontSize(11);
           if (y > 280) { doc.addPage(); y = 20; }
-          doc.text(`${s.chapter}.${s.subchapter} ${s.judul}`, M, y);
+          doc.text(`${s.subchapter} ${s.judul}`, M, y);
           y += 7;
           doc.setFont('times', 'normal');
           doc.setFontSize(9);

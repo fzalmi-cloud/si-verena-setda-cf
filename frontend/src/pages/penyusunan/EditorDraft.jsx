@@ -121,17 +121,61 @@ export default function EditorDraft({ draftId: propDraftId, onBack }) {
 
   const handleExportDOCX = async () => {
     try {
-      const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } = await import('docx');
       const { saveAs } = await import('file-saver');
       const children = [];
       children.push(new Paragraph({ text: draft?.judul || 'Draft Renja Setda', heading: HeadingLevel.TITLE }));
       children.push(new Paragraph({ text: `Tahun ${draft?.tahun}`, heading: HeadingLevel.HEADING_2 }));
       children.push(new Paragraph({ text: '' }));
+      // Render baris-pipa (tabel Permendagri) menjadi tabel Word asli
+      const splitBlocks = (isi) => {
+        const lines = (isi || '').split('\n');
+        const blocks = [];
+        let i = 0;
+        while (i < lines.length) {
+          if (lines[i].split('|').length >= 3) {
+            const rows = [];
+            while (i < lines.length && lines[i].split('|').length >= 3) {
+              rows.push(lines[i].split('|').map(c => c.trim()));
+              i++;
+            }
+            blocks.push({ type: 'table', rows });
+          } else {
+            const paras = [];
+            while (i < lines.length && lines[i].split('|').length < 3) {
+              if (lines[i].trim()) paras.push(lines[i]);
+              i++;
+            }
+            blocks.push({ type: 'text', lines: paras });
+          }
+        }
+        return blocks;
+      };
+      const cell = (t, bold = false) => new TableCell({
+        width: { size: 100 / 6, type: WidthType.PERCENTAGE },
+        children: [new Paragraph({ children: [new TextRun({ text: t, bold, size: 16 })] })],
+      });
       for (const bab of sidebarBabs) {
-        children.push(new Paragraph({ text: bab.judul_bab, heading: HeadingLevel.HEADING_1 }));
-        const paragraphs = (bab.isi_bab || '').split('\n').filter(Boolean);
-        for (const p of paragraphs) {
-          children.push(new Paragraph({ children: [new TextRun({ text: p })] }));
+        children.push(new Paragraph({ text: `BAB ${bab.nomor_bab}. ${bab.judul_bab}`, heading: HeadingLevel.HEADING_1 }));
+        for (const block of splitBlocks(bab.isi_bab)) {
+          if (block.type === 'table') {
+            const [head, ...body] = block.rows;
+            if (head) {
+              children.push(new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                borders: { top: { style: BorderStyle.SINGLE, size: 1 }, bottom: { style: BorderStyle.SINGLE, size: 1 }, left: { style: BorderStyle.SINGLE, size: 1 }, right: { style: BorderStyle.SINGLE, size: 1 } },
+                rows: [
+                  new TableRow({ tableHeader: true, children: head.map(h => cell(h, true)) }),
+                  ...(body || []).map(r => new TableRow({ children: r.map(c => cell(c)) })),
+                ],
+              }));
+              children.push(new Paragraph({ text: '' }));
+            }
+          } else {
+            for (const p of block.lines) {
+              children.push(new Paragraph({ children: [new TextRun({ text: p })] }));
+            }
+          }
         }
         children.push(new Paragraph({ text: '' }));
       }

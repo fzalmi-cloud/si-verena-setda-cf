@@ -25,6 +25,14 @@ jobs:
         working-directory: worker
         run: npm ci
 
+      - name: Ensure seed users exist & active (D1 remote)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          command: d1 execute si-verena-db --remote --file=./src/db/ensure_users.sql
+
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:

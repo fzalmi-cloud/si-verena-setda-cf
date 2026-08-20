@@ -721,25 +721,33 @@ Format JSON (hanya JSON):
 });
 
 // ══════════════ RENJA PERUBAHAN SETDA ══════════════
+// Sistematika Renja Perubahan Perangkat Daerah sesuai Lampiran Permendagri 86/2017
+// (Petunjuk Teknis Penyusunan Renja PD — berlaku juga utk Renja Perubahan):
+//   BAB I   PENDAHULUAN                            (1.1–1.4)
+//   BAB II  EVALUASI PELAKSANAAN RENJA PD          (2.1–2.5, wajib memuat Tabel 2.1–2.4)
+//   BAB III TUJUAN, SASARAN, PROGRAM DAN KEGIATAN  (3.1–3.4, wajib memuat Tabel 3.1–3.4)
+//   BAB IV  PENUTUP                                (4.1–4.3)
 const SETDA_TEMPLATE = [
+  // BAB I PENDAHULUAN
   { chapter: '1', sub: '1.1', judul: 'Latar Belakang', urutan: 1 },
   { chapter: '1', sub: '1.2', judul: 'Landasan Hukum', urutan: 2 },
   { chapter: '1', sub: '1.3', judul: 'Maksud dan Tujuan', urutan: 3 },
-  { chapter: '1', sub: '1.4', judul: 'Keterkaitan dengan Perubahan RKPD', urutan: 4 },
-  { chapter: '1', sub: '1.5', judul: 'Sistematika Penulisan', urutan: 5 },
-  { chapter: '2', sub: '2.1', judul: 'Evaluasi Pelaksanaan Renja Setda s.d. Triwulan II', urutan: 6 },
-  { chapter: '2', sub: '2.2', judul: 'Capaian Program, Kegiatan dan Subkegiatan', urutan: 7 },
-  { chapter: '2', sub: '2.3', judul: 'Capaian Kinerja dan Anggaran', urutan: 8 },
-  { chapter: '2', sub: '2.4', judul: 'Permasalahan dan Hambatan', urutan: 9 },
-  { chapter: '2', sub: '2.5', judul: 'Isu Penting Penyelenggaraan Tugas dan Fungsi', urutan: 10 },
-  { chapter: '2', sub: '2.6', judul: 'Tindak Lanjut Hasil Evaluasi', urutan: 11 },
-  { chapter: '3', sub: '3.1', judul: 'Rencana Program, Kegiatan dan Subkegiatan Perubahan', urutan: 12 },
-  { chapter: '3', sub: '3.2', judul: 'Indikator dan Target Perubahan', urutan: 13 },
-  { chapter: '3', sub: '3.3', judul: 'Pagu Awal, Pagu Perubahan dan Selisih', urutan: 14 },
-  { chapter: '3', sub: '3.4', judul: 'Matriks Renja Perubahan Setda', urutan: 15 },
-  { chapter: '4', sub: '4.1', judul: 'Kesimpulan', urutan: 16 },
-  { chapter: '4', sub: '4.2', judul: 'Kaidah Pelaksanaan', urutan: 17 },
-  { chapter: '4', sub: '4.3', judul: 'Tindak Lanjut', urutan: 18 },
+  { chapter: '1', sub: '1.4', judul: 'Sistematika Penulisan', urutan: 4 },
+  // BAB II EVALUASI PELAKSANAAN RENJA PERANGKAT DAERAH — wajib memuat Tabel 2.1–2.4
+  { chapter: '2', sub: '2.1', judul: 'Evaluasi Pelaksanaan Renja Setda Tahun Lalu dan Capaian Renstra', urutan: 5, tabel: '2.1' },
+  { chapter: '2', sub: '2.2', judul: 'Analisis Kinerja Pelayanan Sekretariat Daerah', urutan: 6, tabel: '2.2' },
+  { chapter: '2', sub: '2.3', judul: 'Isu-Isu Penting Penyelenggaraan Tugas dan Fungsi', urutan: 7 },
+  { chapter: '2', sub: '2.4', judul: 'Review terhadap Rancangan Awal Perubahan RKPD', urutan: 8, tabel: '2.3' },
+  { chapter: '2', sub: '2.5', judul: 'Penelaahan Usulan Program dan Kegiatan Masyarakat', urutan: 9, tabel: '2.4' },
+  // BAB III TUJUAN, SASARAN, PROGRAM DAN KEGIATAN
+  { chapter: '3', sub: '3.1', judul: 'Telaahan terhadap Kebijakan Nasional', urutan: 10 },
+  { chapter: '3', sub: '3.2', judul: 'Tujuan dan Sasaran', urutan: 11 },
+  { chapter: '3', sub: '3.3', judul: 'Program dan Kegiatan', urutan: 12, tabel: '3.1' },
+  { chapter: '3', sub: '3.4', judul: 'Matriks Renja Perubahan Setda', urutan: 13, tabel: '3.4' },
+  // BAB IV PENUTUP
+  { chapter: '4', sub: '4.1', judul: 'Kesimpulan', urutan: 14 },
+  { chapter: '4', sub: '4.2', judul: 'Kaidah Pelaksanaan', urutan: 15 },
+  { chapter: '4', sub: '4.3', judul: 'Tindak Lanjut', urutan: 16 },
 ];
 
 // ── Helper kompilasi otomatis (Fase 1) ──────────────────────────────
@@ -821,7 +829,7 @@ ${konten.slice(0, 25000)}
 
 Hasilkan JSON (hanya JSON, padat):
 {"bab1":"Ringkasan BAB I Pendahuluan: latar belakang, landasan hukum, maksud dan tujuan, keterkaitan dengan Perubahan RKPD, sistematika penulisan. Maks 250 kata.",
-"bab2":"Ringkasan BAB II Evaluasi Pelaksanaan Renja s.d. Triwulan II: capaian program/kegiatan, capaian kinerja dan anggaran, permasalahan dan hambatan, isu penting, tindak lanjut. Maks 300 kata.",
+"bab2":"Ringkasan BAB II Evaluasi Pelaksanaan Renja Setda Tahun Lalu: evaluasi pelaksanaan Renja tahun lalu dan capaian Renstra, analisis kinerja pelayanan, isu-isu penting penyelenggaraan tugas dan fungsi, review terhadap rancangan awal Perubahan RKPD, penelaahan usulan program dan kegiatan masyarakat. Sertakan ANGKA realisasi kinerja dan anggaran s.d. Triwulan II. Maks 350 kata.",
 "bab3":"Ringkasan BAB III Rencana Kerja dan Pendanaan: rencana program/kegiatan/subkegiatan perubahan, indikator dan target, pagu awal, pagu perubahan, selisih, sumber dana, lokasi. Sertakan ANGKA PENTING. Maks 350 kata.",
 "bab4":"Ringkasan BAB IV Penutup: kesimpulan, kaidah pelaksanaan, tindak lanjut. Maks 200 kata."}
 ATURAN: hanya gunakan data yang benar-benar ada di dokumen. JANGAN mengarang. Gunakan bahasa Indonesia formal.`;
@@ -881,6 +889,102 @@ function buildSetdaTables(programs: any[]) {
     ...[...subMap.values()].sort(sortByKode).map(s => row(s.kode, s.nama, s.pagu_awal, s.pagu_perubahan, [...s.biro].join(', '))),
   ].join('\n');
   return { rekapProgram, rekapKegiatan, matriks };
+}
+
+// ── Tabel-tabel BAB II yang WAJIB ada menurut Permendagri 86/2017 ──────────
+// (Lampiran Petunjuk Teknis Penyusunan Renja PD):
+//   Tabel 2.1 — Rekapitulasi Evaluasi Hasil Pelaksanaan Renja PD dan Pencapaian Renstra PD
+//   Tabel 2.2 — Pencapaian Kinerja Pelayanan Perangkat Daerah
+//   Tabel 2.3 — Review terhadap Rancangan Awal RKPD
+//   Tabel 2.4 — Usulan Program dan Kegiatan dari Para Pemangku Kepentingan
+// Data yang belum tersedia di sistem ditandai "—" agar reviewer mengisinya;
+// baris program/kegiatan diisi dari hasil ekstraksi renja_perubahan_programs.
+function buildSetdaBab2Tables(programs: any[], year: number) {
+  const sorted = [...(programs || [])].sort((a, b) =>
+    `${a.program_code || ''}.${a.activity_code || ''}`.localeCompare(`${b.program_code || ''}.${b.activity_code || ''}`, 'en', { numeric: true })
+  );
+  const seen = new Set<string>();
+  const progRows = sorted.filter(p => { const k = `${p.program_code || ''}|${p.program_name || ''}`; if (seen.has(k)) return false; seen.add(k); return true; });
+
+  // Tabel 2.1 — Rekapitulasi Evaluasi Hasil Pelaksanaan Renja PD dan Pencapaian Renstra PD
+  const t21Header = [
+    'Kode',
+    'Urusan/Bidang Urusan/Program/Kegiatan',
+    'Indikator Kinerja Program (outcome)/Kegiatan (output)',
+    'Target Renstra PD Tahun ' + year,
+    'Realisasi Renja s.d. Tahun Lalu',
+    'Tingkat Realisasi (%)',
+    'Realisasi Capaian Program dan Kegiatan s.d. Tahun ' + year,
+    'Target Kinerja dan Anggaran Renja PD Tahun Berjalan (Rp)',
+    'Realisasi Kinerja dan Anggaran Renja PD s.d. Triwulan II (Rp)',
+    'Tingkat Capaian Kinerja dan Realisasi Anggaran Renja PD',
+    'Unit Kerja Penanggung Jawab',
+  ];
+  const t21Rows = progRows.length
+    ? progRows.map(p => [
+        `${p.program_code || ''}.${p.activity_code || ''}`.trim(),
+        [p.program_name, p.activity_name].filter(Boolean).join(' — '),
+        p.indicator || '—',
+        p.target_awal || '—',
+        '—',
+        '—',
+        '—',
+        fmtNum(p.pagu_awal),
+        '—',
+        '—',
+        p.nama_biro || '—',
+      ])
+    : [['—', 'Data evaluasi akan dilengkapi setelah seluruh biro menetapkan Renja Perubahan', '—', '—', '—', '—', '—', '—', '—', '—', '—']];
+  const tabel21 = `Tabel 2.1 — Rekapitulasi Evaluasi Hasil Pelaksanaan Renja Setda dan Pencapaian Renstra s.d. Tahun ${year} (Permendagri 86/2017):\n` +
+    t21Header.join(' | ') + '\n' + t21Rows.map(r => r.join(' | ')).join('\n');
+
+  // Tabel 2.2 — Pencapaian Kinerja Pelayanan Perangkat Daerah
+  const t22Header = ['Indikator', 'SPM/Standar Nasional', 'IKK', 'Target Renstra PD', 'Realisasi', 'Capaian (%)', 'Proyeksi', 'Catatan Analisis'];
+  const t22Rows = progRows.length
+    ? progRows.map((p, i) => [
+        `Kinerja ${[p.program_name, p.activity_name].filter(Boolean).join(' — ')}`,
+        '—',
+        '—',
+        p.target_awal || '—',
+        '—',
+        '—',
+        '—',
+        p.nama_biro || '—',
+      ])
+    : [['—', 'Data capaian kinerja pelayanan akan dilengkapi', '—', '—', '—', '—', '—', '—']];
+  const tabel22 = `Tabel 2.2 — Pencapaian Kinerja Pelayanan Sekretariat Daerah Tahun ${year} (Permendagri 86/2017):\n` +
+    t22Header.join(' | ') + '\n' + t22Rows.map(r => r.join(' | ')).join('\n');
+
+  // Tabel 2.3 — Review terhadap Rancangan Awal Perubahan RKPD
+  const t23Header = [
+    'Rancangan Awal Perubahan RKPD — Program/Kegiatan', 'Lokasi', 'Target Capaian Kinerja', 'Pagu Indikatif (Rp)',
+    'Hasil Analisis Kebutuhan — Program/Kegiatan', 'Lokasi', 'Target Capaian Kinerja', 'Kebutuhan Dana (Rp)', 'Catatan Penting',
+  ];
+  const t23Rows = progRows.length
+    ? progRows.map(p => [
+        [p.program_name, p.activity_name].filter(Boolean).join(' — '),
+        p.lokasi || '—',
+        p.target_perubahan || p.target_awal || '—',
+        fmtNum(p.pagu_awal),
+        [p.program_name, p.activity_name].filter(Boolean).join(' — '),
+        p.lokasi || '—',
+        p.target_perubahan || '—',
+        fmtNum(p.pagu_perubahan),
+        '—',
+      ])
+    : [['—', '—', '—', '—', '—', '—', '—', '—', 'Data review akan dilengkapi']];
+  const tabel23 = `Tabel 2.3 — Review terhadap Rancangan Awal Perubahan RKPD Tahun ${year} (Permendagri 86/2017):\n` +
+    t23Header.join(' | ') + '\n' + t23Rows.map(r => r.join(' | ')).join('\n');
+
+  // Tabel 2.4 — Usulan Program dan Kegiatan dari Para Pemangku Kepentingan
+  const t24Header = ['No', 'Program/Kegiatan', 'Lokasi', 'Indikator Kinerja', 'Besaran/Volume', 'Catatan'];
+  const t24Rows = progRows.length
+    ? progRows.map((p, i) => [String(i + 1), [p.program_name, p.activity_name].filter(Boolean).join(' — '), p.lokasi || '—', p.indicator || '—', p.target_perubahan || p.target_awal || '—', p.nama_biro || '—'])
+    : [['1', '—', '—', '—', '—', 'Data usulan masyarakat akan dilengkapi']];
+  const tabel24 = `Tabel 2.4 — Usulan Program dan Kegiatan dari Para Pemangku Kepentingan Tahun ${year} (Permendagri 86/2017):\n` +
+    t24Header.join(' | ') + '\n' + t24Rows.map(r => r.join(' | ')).join('\n');
+
+  return { tabel21, tabel22, tabel23, tabel24 };
 }
 
 // Susun isi section untuk satu BAB dari ringkasan seluruh biro + data program.
@@ -1034,8 +1138,11 @@ perubahanRoutes.post('/setda/generate', async (c) => {
   const compiledContent: Record<string, string> = {};
   const sectionStatus: Record<string, string> = {};
   const digests = biroData.map(b => ({ nama_biro: b.sub.nama_biro, status: b.sub.status, final: b.sub.status === 'final', version: b.version.version_number, digest: b.digest }));
+  // Tabel-tabel wajib Permendagri 86/2017 (BAB II & III) disusun dari data agregasi,
+  // lalu ditambahkan ke subbab yang bersangkutan (tidak perlu dikompilasi AI).
+  const bab2 = buildSetdaBab2Tables(programs as any[], year);
   if (tables.matriks) {
-    compiledContent['3.4'] = `Tabel 3.4 — Matriks Renja Perubahan Setda Tahun ${year} (kompilasi ${biroData.length} biro):\n\n${tables.matriks}`;
+    compiledContent['3.4'] = `Tabel 3.4 — Matriks Renja Perubahan Setda Tahun ${year} (kompilasi ${biroData.length} biro; Permendagri 86/2017):\n\n${tables.matriks}`;
     sectionStatus['3.4'] = 'otomatis';
   }
   const babResults = await Promise.allSettled([1, 2, 3, 4].map(async (bab) => {
@@ -1053,12 +1160,24 @@ perubahanRoutes.post('/setda/generate', async (c) => {
       else sectionStatus[t.sub] = 'perlu_review';
     }
   }
-  // Tambahkan tabel Permendagri (Tabel 3.1 & 3.3) ke section BAB III
-  if (compiledContent['3.1'] && tables.rekapProgram) {
-    compiledContent['3.1'] += `\n\nTabel 3.1 — Rekapitulasi Rencana Program dan Kegiatan per Bidang Urusan (T-C.29 Permendagri 86/2017):\n${tables.rekapProgram}`;
+  // Sisipkan Tabel 2.1–2.4 (wajib Permendagri 86/2017) ke subbab BAB II yang bersangkutan —
+  // disisipkan SELALU (meski AI belum menghasilkan narasi) agar tabel wajib tidak pernah hilang
+  const appendBab2 = (sub: string, table: string) => {
+    if (!table) return;
+    const prev = compiledContent[sub];
+    compiledContent[sub] = (prev && prev.trim().length > 0 ? prev + '\n\n' : 'Data evaluasi per biro di bawah ini merupakan kompilasi dari dokumen Renja Perubahan biro yang diunggah.\n\n') + table;
+    sectionStatus[sub] = 'otomatis';
+  };
+  appendBab2('2.1', bab2.tabel21);
+  appendBab2('2.2', bab2.tabel22);
+  appendBab2('2.4', bab2.tabel23);
+  appendBab2('2.5', bab2.tabel24);
+  // Sisipkan Tabel 3.1 & 3.3 (Permendagri 86/2017) ke subbab 3.3 Program dan Kegiatan
+  if (compiledContent['3.3'] && tables.rekapProgram) {
+    compiledContent['3.3'] += `\n\nTabel 3.1 — Rumusan Rencana Program dan Kegiatan Sekretariat Daerah Tahun ${year} (Permendagri 86/2017 Tabel T-C.29):\n${tables.rekapProgram}`;
   }
   if (compiledContent['3.3'] && tables.rekapKegiatan) {
-    compiledContent['3.3'] += `\n\nTabel 3.3 — Rekapitulasi Pagu Awal, Pagu Perubahan dan Selisih per Program/Kegiatan (T-C.33 Permendagri 86/2017):\n${tables.rekapKegiatan}`;
+    compiledContent['3.3'] += `\n\nTabel 3.3 — Rekapitulasi Pagu Awal, Pagu Perubahan dan Selisih per Program/Kegiatan (Permendagri 86/2017 Tabel T-C.33):\n${tables.rekapKegiatan}`;
   }
 
   // 5) Simpan / perbarui setda

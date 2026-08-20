@@ -1,4 +1,6 @@
 // templateDocx.js — Isi template DOCX resmi Renja Perubahan Setda dengan data draft.
+// Membangun ulang isi dokumen (mulai DAFTAR ISI) mengikuti sistematika
+// Permendagri 86/2017: BAB I–IV dengan heading & tabel yang benar.
 // Memakai DOMParser/XMLSerializer global: native di browser,
 // @xmldom/xmldom saat diuji di Node (set globalThis.DOMParser terlebih dahulu).
 
@@ -55,6 +57,14 @@ function buildLogoParagraphXml(rId, cx, cy) {
 </w:p>`;
 }
 
+const ROMAN = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V' };
+const BAB_TITLES = {
+  '1': 'PENDAHULUAN',
+  '2': 'EVALUASI PELAKSANAAN RENJA PERANGKAT DAERAH',
+  '3': 'TUJUAN, SASARAN, PROGRAM DAN KEGIATAN',
+  '4': 'PENUTUP',
+};
+
 export async function buildDocxFromTemplate(zip, sections, opts = {}) {
   const { logoBytes } = opts;
   const entry = zip.file('word/document.xml');
@@ -67,7 +77,7 @@ export async function buildDocxFromTemplate(zip, sections, opts = {}) {
   if (!body) throw new Error('w:body tidak ditemukan di template');
 
   const byTag = (el, tag) => Array.from(el.getElementsByTagName(tag));
-  const paraText = (el) => byTag(el, 'w:t').map(t => t.textContent || '').join('');
+  const paraText = (el) => byTag(el, 'w:t').map(t => t.textContent || '').join('').trim();
   const makeText = (text) => {
     const t = doc.createElement('w:t');
     t.setAttribute('xml:space', 'preserve');
@@ -110,47 +120,22 @@ export async function buildDocxFromTemplate(zip, sections, opts = {}) {
       p.appendChild(r);
     }
   };
-  // Isi ulang tabel template: header tetap, baris data diganti dari rows
-  const fillTable = (tblEl, rows) => {
-    const trs = byTag(tblEl, 'w:tr');
-    if (!trs.length) return;
-    const header = trs[0];
-    const sampleData = trs[1] || null;
-    trs.slice(1).forEach(r => r.parentNode.removeChild(r));
-    const ncols = header ? byTag(header, 'w:tc').length : (sampleData ? byTag(sampleData, 'w:tc').length : 1);
-    (rows || []).forEach(row => {
-      if (sampleData) {
-        const tr = sampleData.cloneNode(true);
-        let tcs = byTag(tr, 'w:tc');
-        // samakan jumlah sel dengan jumlah kolom
-        while (tcs.length < ncols) {
-          const tc = byTag(sampleData, 'w:tc')[0].cloneNode(true);
-          tr.appendChild(tc);
-          tcs = byTag(tr, 'w:tc');
-        }
-        while (tcs.length > ncols) {
-          tcs[tcs.length - 1].parentNode.removeChild(tcs[tcs.length - 1]);
-          tcs = byTag(tr, 'w:tc');
-        }
-        tcs.forEach((tc, ci) => setCellText(tc, String(row[ci] ?? '')));
-        tblEl.appendChild(tr);
-      } else {
-        // tanpa sampel: buat baris polos
-        const tr = doc.createElement('w:tr');
-        for (let ci = 0; ci < ncols; ci++) {
-          const tc = doc.createElement('w:tc');
-          const p = doc.createElement('w:p');
-          const r = doc.createElement('w:r');
-          r.appendChild(makeText(String(row[ci] ?? '')));
-          p.appendChild(r);
-          tc.appendChild(p);
-          tr.appendChild(tc);
-        }
-        tblEl.appendChild(tr);
-      }
+  // Kecilkan ukuran font semua sel tabel (agar tabel lebar muat di kertas)
+  const shrinkTableFont = (tbl, halfPoints = 13) => {
+    byTag(tbl, 'w:tc').forEach(tc => {
+      byTag(tc, 'w:r').forEach(r => {
+        let rPr = r.getElementsByTagName('w:rPr')[0];
+        if (!rPr) { rPr = doc.createElement('w:rPr'); r.insertBefore(rPr, r.firstChild); }
+        let sz = byTag(rPr, 'w:sz')[0];
+        if (!sz) { sz = doc.createElement('w:sz'); rPr.appendChild(sz); }
+        sz.setAttribute('w:val', String(halfPoints));
+        let szCs = byTag(rPr, 'w:szCs')[0];
+        if (!szCs) { szCs = doc.createElement('w:szCs'); rPr.appendChild(szCs); }
+        szCs.setAttribute('w:val', String(halfPoints));
+      });
     });
   };
-  // Buat tabel baru (dipakai utk Tabel 3.4 matriks) dari template tabel (Tabel 3.1) + rows
+  // Buat tabel baru dari template tabel (base) + rows (baris 0 = header)
   const createTable = (baseTbl, rows) => {
     const tbl = baseTbl.cloneNode(true);
     const hdrTr = byTag(tbl, 'w:tr')[0] || null;
@@ -174,164 +159,125 @@ export async function buildDocxFromTemplate(zip, sections, opts = {}) {
       tcs.forEach((tc, ci) => setCellText(tc, String(row[ci] ?? '')));
       tbl.appendChild(tr);
     });
+    shrinkTableFont(tbl);
     return tbl;
   };
 
-  // ── Siapkan referensi heading section ──
-  const labels = new Map();
-  sections.forEach(s => labels.set(`${s.chapter}.${s.subchapter} ${s.judul}`, s));
-
+  // ── Inventaris elemen template (sebelum dihapus) ──
   const allParas = byTag(body, 'w:p');
-  const sectionHeadings = allParas
-    .map((p, i) => ({ p, i, text: paraText(p).trim() }))
-    .filter(h => labels.has(h.text));
-
-  // batas akhir tiap section = heading section berikutnya (atau akhir body)
-  sectionHeadings.forEach((h, i) => { h.endP = i + 1 < sectionHeadings.length ? sectionHeadings[i + 1].p : null; });
-
-  // cari BAB IV PENUTUP (heading asli, teks persis — hindari deskripsi sistematika di BAB I)
-  const babIV = allParas.find(p => paraText(p).trim() === 'BAB IV PENUTUP');
-  // cari paragraf sampel BODY (setelah heading section pertama) sebagai basis gaya teks —
-  // JANGAN pakai paragraf sampul (font besar 18pt) agar ukuran teks sesuai isi dokumen
-  let basePara = null;
-  if (sectionHeadings[0]) {
-    let nb = sectionHeadings[0].p.nextSibling;
-    while (nb && !basePara) {
-      if (nb.nodeName === 'w:p') basePara = nb;
-      nb = nb.nextSibling;
-    }
-  }
-  if (!basePara) basePara = allParas.find(p => paraText(p).trim().length > 40) || allParas[0];
-
-  // preprocess konten per section: narrative + tabel pipe
-  const sectionBlocks = new Map();
-  sections.forEach(s => {
-    const blocks = parseTableBlocks(s.content || '');
-    // pisahkan: narrative (paragraf) dan tabel pipe (dengan judul caption terpisah)
-    const paras = [];
-    const tables = []; // { title: string|null, rows }
-    let pendingTitle = null;
-    blocks.forEach(b => {
-      if (b.type === 'text') {
-        const joined = b.lines.join('\n');
-        const m = joined.match(/^(Tabel\s+3\.\d\s*—[^\n]*)$/i);
-        if (m) pendingTitle = m[1].trim();
-        else b.lines.forEach(l => paras.push(l)); // tiap baris = paragraf sendiri (daftar 1. 2. 3. tetap turun ke bawah)
-      } else {
-        tables.push({ title: pendingTitle, rows: b.rows });
-        pendingTitle = null;
-      }
-    });
-    sectionBlocks.set(s, { paras, tables });
-  });
-
-  // ── Mutasi DOM ──
-  // 1) Tabel 3.1 & 3.3: isi tabel template yang ada; tabel pipe di konten tidak di-sisipkan lagi
-  // 2) Section lain: hapus sampel, sisipkan narrative
-  // 3) 3.4: sisipkan heading + caption + tabel matriks sebelum BAB IV
-
-  for (const s of sections) {
-    const lbl = `${s.chapter}.${s.subchapter} ${s.judul}`;
-    const heading = sectionHeadings.find(h => h.text === lbl);
-    if (!heading) continue; // mis. 3.4 tidak ada di template — ditangani terpisah
-    const { paras, tables } = sectionBlocks.get(s) || { paras: [], tables: [] };
-
-    // kumpulkan elemen antara heading & heading berikutnya
-    let nextEl = heading.p.nextSibling;
-    const between = [];
-    while (nextEl && nextEl !== heading.endP && nextEl !== babIV) {
-      const nx = nextEl.nextSibling;
-      between.push(nextEl);
-      nextEl = nx;
-    }
-    // deteksi tabel template yang ada di antara
-    const existingTbl = between.find(el => el.tagName === 'w:tbl');
-    const captionPara = between.find(el => el.tagName === 'w:p' && /^Tabel\s+3\.\d/.test(paraText(el).trim()));
-
-    // buang semua elemen antara (akan disusun ulang)
-    between.forEach(el => el.parentNode.removeChild(el));
-
-    // sisipkan: narrative -> caption -> tabel (jika ada)
-    let insertAfter = heading.p;
-    paras.forEach(line => {
-      const np = createPara(basePara, line);
-      heading.p.parentNode.insertBefore(np, insertAfter.nextSibling);
-      insertAfter = np;
-    });
-    if (existingTbl) {
-      // isi tabel template dari tabel pipe (tanpa baris header pipe)
-      const pipe = (tables.find(t => !t.title || /Tabel 3\.(1|3)/.test(t.title || '')) || tables[0] || { rows: [] });
-      const dataRows = pipe.rows.length > 1 ? pipe.rows.slice(1) : pipe.rows;
-      fillTable(existingTbl, dataRows);
-      // sisipkan caption tabel sebelum tabel
-      const capText = (pipe.title) || (captionPara ? paraText(captionPara).trim() : null);
-      if (capText) {
-        const cap = createPara(basePara, capText);
-        heading.p.parentNode.insertBefore(cap, insertAfter.nextSibling);
-        insertAfter = cap;
-      }
-      heading.p.parentNode.insertBefore(existingTbl, insertAfter.nextSibling);
-      insertAfter = existingTbl;
-    } else {
-      // sisipkan tabel pipe (mis. konten berisi tabel tanpa tabel template)
-      tables.forEach(tb => {
-        const cap = tb.title
-          ? createPara(basePara, tb.title)
-          : null;
-        if (cap) { heading.p.parentNode.insertBefore(cap, insertAfter.nextSibling); insertAfter = cap; }
-        const nt = createTable(existingTbl || byTag(body, 'w:tbl')[0] || basePara.parentNode, tb.rows);
-        heading.p.parentNode.insertBefore(nt, insertAfter.nextSibling);
-        insertAfter = nt;
-      });
-    }
-    if (captionPara && !tables.length) {
-      // caption template tetap dipertahankan jika tidak ada tabel pipe
-      heading.p.parentNode.insertBefore(captionPara, insertAfter.nextSibling);
-    }
-  }
-
-  // cari tabel template multi-kolom (Tabel 3.1/3.3) sbg basis tabel baru —
+  const findPara = (re) => allParas.find(p => re.test(paraText(p)));
+  const tocPara = allParas.find(p => byTag(p, 'w:instrText').some(t => /TOC/.test(t.textContent || '')));
+  const daftarIsiPara = findPara(/^DAFTAR ISI$/);
+  const babHeadingStyle = findPara(/^BAB\s+\d+\s+PENDAHULUAN$/) || allParas.find(p => /^BAB\s/.test(paraText(p)));
+  const subHeadingStyle = findPara(/^\d\.\d\.\d\s/) || babHeadingStyle;
+  // paragraf sampel BODY sebagai basis gaya teks (bukan paragraf sampul font besar)
+  let basePara = allParas.find(p => {
+    const t = paraText(p);
+    return t.length > 40 && !/^BAB\s/.test(t) && !/^\d\.\d\.\d/.test(t) && !/PETUNJUK PENGGUNAAN/.test(t);
+  }) || allParas.find(p => paraText(p).trim().length > 40) || allParas[0];
+  // tabel template multi-kolom (>=5 kolom) sbg basis tabel baru —
   // JANGAN pakai tabel STATUS sampul (1 kolom, font 11pt)
   const allTables = byTag(body, 'w:tbl');
   const multiColTbl = allTables.find(t => byTag(t, 'w:gridCol').length >= 5) || allTables[0];
 
-  // 3.4 Matriks — sisipkan heading + caption + tabel sebelum BAB IV
-  const s34 = sections.find(s => s.subchapter === '3.4');
-  if (s34 && babIV && sectionBlocks.has(s34)) {
-    const { paras, tables } = sectionBlocks.get(s34);
-    const h34 = createPara(basePara, `3.3.4 ${s34.judul}`, { justify: false });
-    // pakai gaya heading section (clone heading section terakhir)
-    const secHeadingStyle = sectionHeadings.length ? sectionHeadings[sectionHeadings.length - 1].p : null;
-    if (secHeadingStyle) {
-      const hp = secHeadingStyle.cloneNode(true);
-      byTag(hp, 'w:r').forEach(r => r.parentNode.removeChild(r));
-      const r = doc.createElement('w:r');
-      const rPr = byTag(secHeadingStyle, 'w:rPr')[0];
-      if (rPr) r.appendChild(rPr.cloneNode(true));
-      r.appendChild(makeText(`3.3.4 ${s34.judul}`));
-      hp.appendChild(r);
-      babIV.parentNode.insertBefore(hp, babIV);
-      paras.forEach(line => {
-        const np = createPara(basePara, line);
-        babIV.parentNode.insertBefore(np, babIV);
-      });
-      tables.forEach(tb => {
-        if (tb.title) {
-          const cap = createPara(basePara, tb.title, { justify: false });
-          babIV.parentNode.insertBefore(cap, babIV);
-        }
-        const tbl = createTable(multiColTbl, tb.rows);
-        babIV.parentNode.insertBefore(tbl, babIV);
-      });
-    } else {
-      babIV.parentNode.insertBefore(h34, babIV);
-      paras.forEach(line => babIV.parentNode.insertBefore(createPara(basePara, line), babIV));
-      tables.forEach(tb => {
-        if (tb.title) babIV.parentNode.insertBefore(createPara(basePara, tb.title, { justify: false }), babIV);
-        babIV.parentNode.insertBefore(createTable(multiColTbl, tb.rows), babIV);
-      });
+  // ── Bersihkan: hapus petunjuk penggunaan, deskripsi, & semua isi setelah DAFTAR ISI ──
+  // (sampul + DAFTAR ISI + field TOC dipertahankan; sisanya dibangun ulang)
+  const anchor = tocPara || daftarIsiPara;
+  if (!anchor) throw new Error('Field DAFTAR ISI (TOC) tidak ditemukan di template');
+  const children = Array.from(body.childNodes);
+  let removing = false;
+  // a) hapus blok "PETUNJUK PENGGUNAAN TEMPLATE" antara sampul & DAFTAR ISI
+  const petunjukPara = allParas.find(p => /^PETUNJUK PENGGUNAAN/.test(paraText(p)));
+  if (petunjukPara && daftarIsiPara) {
+    let el = petunjukPara;
+    while (el && el !== daftarIsiPara) {
+      const nx = el.nextSibling;
+      if (el.parentNode) el.parentNode.removeChild(el);
+      el = nx;
     }
   }
+  children.forEach(child => {
+    if (child === anchor) { removing = true; return; }
+    if (removing) body.removeChild(child);
+    if (child === daftarIsiPara) {
+      // hapus paragraf deskripsi & hal. kosong di antara DAFTAR ISI dan field TOC
+      let nx = child.nextSibling;
+      while (nx && nx !== anchor) {
+        const nn = nx.nextSibling;
+        if (nx.nodeType === 1 && nx.nodeName === 'w:p') body.removeChild(nx);
+        nx = nn;
+      }
+    }
+  });
+  // normalisasi field TOC: backslash ganda -> tunggal agar Word bisa update DAFTAR ISI
+  if (anchor === tocPara) {
+    byTag(tocPara, 'w:instrText').forEach(t => {
+      if (t.textContent) t.textContent = t.textContent.replace(/\\\\/g, '\\');
+    });
+  }
+
+  // ── Bangun ulang isi dokumen: BAB I–IV sesuai Permendagri 86/2017 ──
+  const BAB_ORDER = ['1', '2', '3', '4'];
+  const insertPoint = anchor; // sisipkan setelah field TOC
+  const appendAfter = (el) => {
+    insertPoint.parentNode.insertBefore(el, insertPoint.nextSibling);
+    // update insertPoint agar urutan tetap
+    // (gunakan variabel eksternal — lihat bawah)
+  };
+
+  let cursor = insertPoint;
+  const insert = (el) => {
+    cursor.parentNode.insertBefore(el, cursor.nextSibling);
+    cursor = el;
+  };
+
+  BAB_ORDER.forEach(babNo => {
+    const babSections = sections.filter(s => String(s.chapter) === babNo);
+    if (!babSections.length) return;
+    // Heading BAB (gaya dari template, teks diganti)
+    const babHeading = createPara(babHeadingStyle, `BAB ${ROMAN[babNo] || babNo} ${BAB_TITLES[babNo] || ''}`, { justify: false });
+    // pastikan gaya heading BAB: teks bold, lebih besar
+    const hbRPr = byTag(babHeading, 'w:r')[0]?.getElementsByTagName('w:rPr')[0];
+    if (hbRPr) {
+      let b = byTag(hbRPr, 'w:b')[0];
+      if (!b) { b = doc.createElement('w:b'); hbRPr.appendChild(b); }
+      let sz = byTag(hbRPr, 'w:sz')[0];
+      if (sz) sz.setAttribute('w:val', '32'); // 16pt
+    }
+    insert(babHeading);
+
+    babSections.forEach(s => {
+      // Sub-heading: "2.1 Evaluasi Pelaksanaan Renja Setda Tahun Lalu dan Capaian Renstra"
+      const subHeading = createPara(subHeadingStyle, `${s.subchapter} ${s.judul}`, { justify: false });
+      const shRPr = byTag(subHeading, 'w:r')[0]?.getElementsByTagName('w:rPr')[0];
+      if (shRPr) {
+        let b = byTag(shRPr, 'w:b')[0];
+        if (!b) { b = doc.createElement('w:b'); shRPr.appendChild(b); }
+        let sz = byTag(shRPr, 'w:sz')[0];
+        if (sz) sz.setAttribute('w:val', '28'); // 14pt
+      }
+      insert(subHeading);
+
+      // Isi section: paragraf narasi + caption tabel + tabel pipe
+      const blocks = parseTableBlocks(s.content || '');
+      let pendingTitle = null;
+      blocks.forEach(b => {
+        if (b.type === 'text') {
+          const joined = b.lines.join('\n');
+          const m = joined.match(/^(Tabel\s+\d\.\d\s*—[^\n]*)$/i);
+          if (m) { pendingTitle = m[1].trim(); return; }
+          b.lines.forEach(l => insert(createPara(basePara, l)));
+        } else {
+          if (pendingTitle) {
+            insert(createPara(basePara, pendingTitle, { justify: false }));
+            pendingTitle = null;
+          }
+          insert(createTable(multiColTbl, b.rows));
+        }
+      });
+      if (pendingTitle) insert(createPara(basePara, pendingTitle, { justify: false }));
+    });
+  });
 
   // ── Sisipkan logo emblem di awal sampul (opsional) ──
   if (logoBytes && logoBytes.length > 0) {

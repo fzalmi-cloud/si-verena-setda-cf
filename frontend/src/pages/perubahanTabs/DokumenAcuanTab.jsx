@@ -39,12 +39,15 @@ export default function DokumenAcuanTab({ tahun, refreshKey, canManage }) {
 
   const load = () => {
     setLoading(true);
-    api.list('perubahan/references', { year: parseInt(tahun), limit: 200 })
+    // Muat referensi SEMUA tahun: dokumen acuan (Permendagri 86/2017, RPJMD, SE, dll)
+    // berlaku lintas tahun, sehingga tab selalu menampilkan isinya tanpa tergantung
+    // tahun yang sedang dipilih di halaman. Kolom "Tahun" tetap ditampilkan per baris.
+    api.list('perubahan/references', { limit: 500 })
       .then(resp => setList(Array.isArray(resp?.data) ? resp.data : []))
       .catch(() => setList([]))
       .finally(() => setLoading(false));
   };
-  useEffect(load, [tahun, refreshKey]);
+  useEffect(load, [refreshKey]);
 
   const handleFile = async (f) => {
     try {
